@@ -559,7 +559,7 @@ function confirmBack(){
 // ── RESULT ──
 function showResult(){
   stopTimer();
-  var total=quizQuestions.length, correct=total-wrongQuestions.length, pct=Math.round((score/total)*100);
+  var total=quizQuestions.length, correct=total-wrongQuestions.length, pct=Math.round((correct/total)*100);
   document.getElementById('stTotal').textContent=total;
   document.getElementById('stCorrect').textContent=correct;
   document.getElementById('stWrong').textContent=wrongQuestions.length;

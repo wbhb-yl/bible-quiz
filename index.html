@@ -1,0 +1,700 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>성경 퀴즈</title>
+<!-- Firebase SDK -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --primary:#4A6FA5; --primary-dark:#3A5A8A; --secondary:#F4A261;
+  --correct:#2E8B57; --wrong:#C0392B; --bg:#F0F4FF; --text:#1A1A2E;
+  --muted:#6B7280; --border:#E2E8F0; --shadow:0 4px 20px rgba(74,111,165,0.15);
+}
+body { font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif; background:var(--bg); color:var(--text); min-height:100vh; display:flex; flex-direction:column; align-items:center; }
+.screen { display:none; width:100%; max-width:480px; min-height:100vh; flex-direction:column; }
+.screen.active { display:flex; }
+
+/* ── HOME ── */
+#home { background:linear-gradient(160deg,#1A1A2E 0%,#16213E 50%,#0F3460 100%); align-items:center; padding:28px 24px 36px; gap:0; overflow-y:auto; }
+.home-header { text-align:center; margin-bottom:24px; }
+.home-cross { font-size:44px; margin-bottom:8px; filter:drop-shadow(0 0 18px rgba(244,162,97,0.8)); }
+.home-title { font-size:28px; font-weight:800; color:#fff; }
+.home-sub { font-size:12px; color:rgba(255,255,255,0.45); margin-top:5px; letter-spacing:1px; }
+.conn-badge { display:inline-flex; align-items:center; gap:5px; padding:4px 10px; border-radius:20px; font-size:11px; font-weight:600; margin-top:8px; }
+.conn-badge.online { background:rgba(46,139,87,0.25); color:#4ADE80; border:1px solid rgba(46,139,87,0.35); }
+.conn-badge.offline { background:rgba(192,57,43,0.2); color:#F87171; border:1px solid rgba(192,57,43,0.3); }
+.conn-dot { width:7px; height:7px; border-radius:50%; }
+.conn-badge.online .conn-dot { background:#4ADE80; box-shadow:0 0 6px #4ADE80; }
+.conn-badge.offline .conn-dot { background:#F87171; }
+
+.slabel { font-size:11px; color:rgba(255,255,255,0.4); letter-spacing:1.5px; text-transform:uppercase; margin-bottom:7px; }
+.name-wrap { width:100%; margin-bottom:16px; }
+.name-input { width:100%; padding:11px 14px; border-radius:11px; border:1.5px solid rgba(255,255,255,0.14); background:rgba(255,255,255,0.07); color:#fff; font-size:15px; font-family:inherit; outline:none; transition:border-color 0.2s; }
+.name-input::placeholder { color:rgba(255,255,255,0.28); }
+.name-input:focus { border-color:var(--secondary); }
+
+.section-grid { width:100%; display:grid; grid-template-columns:1fr 1fr; gap:9px; margin-bottom:11px; }
+.sec-card { background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.12); border-radius:13px; padding:14px 10px; text-align:center; cursor:pointer; transition:all 0.2s; position:relative; }
+.sec-card:active { transform:scale(0.97); }
+.sec-card.sel { background:rgba(74,111,165,0.32); border-color:var(--secondary); box-shadow:0 0 14px rgba(244,162,97,0.22); }
+.sec-card .s-icon { font-size:22px; margin-bottom:5px; }
+.sec-card .s-name { font-size:13px; font-weight:700; color:#fff; }
+.sec-card .s-cnt { font-size:11px; color:rgba(255,255,255,0.4); margin-top:2px; }
+.sec-card .s-chk { position:absolute; top:6px; right:6px; width:15px; height:15px; background:var(--secondary); border-radius:50%; display:none; align-items:center; justify-content:center; font-size:8px; color:#fff; }
+.sec-card.sel .s-chk { display:flex; }
+.all-btn { width:100%; padding:10px; background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.1); border-radius:9px; color:rgba(255,255,255,0.55); font-size:12px; cursor:pointer; margin-bottom:14px; font-family:inherit; }
+
+.settings-box { width:100%; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.09); border-radius:13px; padding:13px; margin-bottom:14px; }
+.settings-toggle { width:100%; display:flex; align-items:center; justify-content:space-between; background:transparent; border:none; cursor:pointer; padding:0; font-family:inherit; }
+.settings-toggle .slabel { margin-bottom:0; pointer-events:none; }
+.settings-toggle .s-arrow { font-size:12px; color:rgba(255,255,255,0.35); transition:transform 0.25s ease; }
+.settings-toggle.open .s-arrow { transform:rotate(180deg); }
+.settings-content { overflow:hidden; max-height:0; transition:max-height 0.3s ease, margin-top 0.3s ease; margin-top:0; }
+.settings-content.open { max-height:400px; margin-top:10px; }
+.srow { display:flex; align-items:center; justify-content:space-between; padding:8px 0; border-bottom:1px solid rgba(255,255,255,0.04); }
+.srow:last-child { border-bottom:none; }
+.srow-label { font-size:12px; color:rgba(255,255,255,0.7); }
+.srow-ctrl { display:flex; gap:4px; flex-wrap:wrap; justify-content:flex-end; }
+.cbtn { padding:4px 9px; border-radius:14px; border:1px solid rgba(255,255,255,0.16); background:transparent; color:rgba(255,255,255,0.5); font-size:11px; cursor:pointer; font-family:inherit; transition:all 0.2s; }
+.cbtn.active { background:var(--secondary); border-color:var(--secondary); color:#fff; font-weight:700; }
+
+.resume-btn { width:100%; padding:12px; background:rgba(46,139,87,0.22); border:1px solid rgba(46,139,87,0.45); border-radius:11px; color:#4ADE80; font-size:13px; font-weight:700; cursor:pointer; margin-bottom:9px; font-family:inherit; display:none; }
+.lb-btn { width:100%; padding:12px; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.12); border-radius:11px; color:rgba(255,255,255,0.7); font-size:13px; font-weight:600; cursor:pointer; margin-bottom:9px; font-family:inherit; }
+.start-btn { width:100%; padding:15px; background:linear-gradient(135deg,var(--secondary),#E07B3A); border:none; border-radius:13px; color:#fff; font-size:16px; font-weight:800; cursor:pointer; box-shadow:0 7px 24px rgba(244,162,97,0.35); font-family:inherit; }
+.start-btn:active { transform:scale(0.97); }
+.start-btn:disabled { opacity:0.32; cursor:not-allowed; transform:none; }
+
+/* ── QUIZ ── */
+#quiz { background:var(--bg); }
+.quiz-topbar { background:#fff; padding:11px 14px; display:flex; align-items:center; gap:9px; box-shadow:0 2px 8px rgba(0,0,0,0.06); position:sticky; top:0; z-index:10; }
+.q-back { width:32px; height:32px; background:var(--bg); border:none; border-radius:8px; cursor:pointer; display:flex; align-items:center; justify-content:center; font-size:14px; flex-shrink:0; }
+.q-pw { flex:1; }
+.q-pl { display:flex; justify-content:space-between; font-size:11px; color:var(--muted); margin-bottom:4px; }
+.q-pb { height:5px; background:var(--border); border-radius:3px; overflow:hidden; }
+.q-pf { height:100%; background:linear-gradient(90deg,var(--primary),var(--secondary)); border-radius:3px; transition:width 0.4s ease; }
+.timer-strip { height:4px; background:var(--border); border-radius:2px; margin-top:3px; overflow:hidden; }
+.timer-fill { height:100%; background:var(--secondary); border-radius:2px; transition:width 1s linear; }
+.q-score { background:var(--primary); color:#fff; font-size:11px; font-weight:700; padding:4px 8px; border-radius:14px; flex-shrink:0; }
+.quiz-body { padding:14px; flex:1; display:flex; flex-direction:column; gap:12px; }
+.q-meta { display:flex; gap:5px; align-items:center; flex-wrap:wrap; }
+.mbadge { padding:3px 8px; border-radius:14px; font-size:11px; font-weight:600; }
+.mb-section { background:#EEF2FF; color:var(--primary); }
+.mb-diff-하 { background:#D1FAE5; color:#065F46; }
+.mb-diff-중 { background:#FEF3C7; color:#92400E; }
+.mb-diff-상 { background:#FEE2E2; color:#991B1B; }
+.mb-num { font-size:11px; color:var(--muted); margin-left:auto; }
+.combo-badge { padding:3px 9px; border-radius:14px; font-size:11px; font-weight:800; background:linear-gradient(135deg,#F4A261,#E07B3A); color:#fff; display:none; animation:pop 0.3s ease; }
+.combo-badge.show { display:inline-block; }
+@keyframes pop { 0%{transform:scale(0.5);opacity:0} 70%{transform:scale(1.2)} 100%{transform:scale(1);opacity:1} }
+.q-card { background:#fff; border-radius:17px; padding:20px 16px; box-shadow:var(--shadow); }
+.q-text { font-size:16px; font-weight:700; line-height:1.55; color:var(--text); }
+.choices { display:flex; flex-direction:column; gap:8px; }
+.choice-btn { display:flex; align-items:center; gap:11px; background:#fff; border:2px solid var(--border); border-radius:12px; padding:12px 13px; cursor:pointer; font-size:14px; color:var(--text); text-align:left; transition:all 0.2s; box-shadow:0 2px 5px rgba(0,0,0,0.04); width:100%; font-family:inherit; }
+.choice-btn:active:not([disabled]) { transform:scale(0.98); }
+.cbadge { width:28px; height:28px; border-radius:50%; background:var(--bg); color:var(--primary); font-weight:700; font-size:13px; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+.ctext { flex:1; line-height:1.4; }
+.choice-btn.correct { border-color:var(--correct); background:#F0FFF4; }
+.choice-btn.correct .cbadge { background:var(--correct); color:#fff; }
+.choice-btn.wrong { border-color:var(--wrong); background:#FFF5F5; }
+.choice-btn.wrong .cbadge { background:var(--wrong); color:#fff; }
+.choice-btn[disabled] { cursor:default; }
+.expl-card { background:linear-gradient(135deg,#EEF2FF,#F5F3FF); border:1px solid #C7D2FE; border-radius:13px; padding:13px 15px; display:none; }
+.expl-card.show { display:block; animation:slideUp 0.3s ease; }
+@keyframes slideUp { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
+.expl-hdr { font-size:11px; font-weight:700; color:var(--primary); margin-bottom:4px; }
+.expl-text { font-size:13px; color:#374151; line-height:1.6; }
+.expl-verse { font-size:11px; color:var(--primary); margin-top:5px; font-weight:600; }
+.next-btn { width:100%; padding:14px; background:linear-gradient(135deg,var(--primary),var(--primary-dark)); border:none; border-radius:12px; color:#fff; font-size:14px; font-weight:700; cursor:pointer; display:none; box-shadow:0 5px 16px rgba(74,111,165,0.3); font-family:inherit; }
+.next-btn.show { display:block; animation:slideUp 0.3s ease; }
+
+/* ── RESULT ── */
+#result { background:linear-gradient(160deg,#1A1A2E 0%,#16213E 50%,#0F3460 100%); align-items:center; justify-content:center; padding:32px 24px; gap:18px; overflow-y:auto; }
+.result-icon { font-size:56px; text-align:center; animation:bounceIn 0.6s ease; }
+@keyframes bounceIn { 0%{transform:scale(0);opacity:0} 60%{transform:scale(1.2)} 100%{transform:scale(1);opacity:1} }
+.result-title { font-size:22px; font-weight:800; color:#fff; text-align:center; }
+.score-ring { position:relative; width:140px; height:140px; }
+.score-ring svg { width:140px; height:140px; transform:rotate(-90deg); }
+.strack { fill:none; stroke:rgba(255,255,255,0.1); stroke-width:10; }
+.sfill { fill:none; stroke:var(--secondary); stroke-width:10; stroke-linecap:round; stroke-dasharray:408; stroke-dashoffset:408; transition:stroke-dashoffset 1.2s ease; }
+.score-center { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; }
+.score-pct { font-size:28px; font-weight:800; color:#fff; line-height:1; }
+.score-lbl { font-size:11px; color:rgba(255,255,255,0.4); margin-top:2px; }
+.result-stats { display:grid; grid-template-columns:repeat(4,1fr); gap:7px; width:100%; }
+.stat-box { background:rgba(255,255,255,0.07); border:1px solid rgba(255,255,255,0.09); border-radius:11px; padding:11px 6px; text-align:center; }
+.stat-num { font-size:19px; font-weight:800; color:#fff; }
+.stat-lbl { font-size:10px; color:rgba(255,255,255,0.4); margin-top:2px; }
+.result-msg { text-align:center; font-size:13px; color:rgba(255,255,255,0.6); line-height:1.6; }
+.result-btns { width:100%; display:flex; flex-direction:column; gap:8px; }
+.rbtn { width:100%; padding:13px; border-radius:12px; border:none; font-size:14px; font-weight:700; cursor:pointer; transition:all 0.2s; font-family:inherit; }
+.rbtn:active { transform:scale(0.97); }
+.rbtn-primary { background:linear-gradient(135deg,var(--secondary),#E07B3A); color:#fff; box-shadow:0 5px 16px rgba(244,162,97,0.32); }
+.rbtn-ghost { background:rgba(255,255,255,0.07); border:1px solid rgba(255,255,255,0.14); color:rgba(255,255,255,0.78); }
+
+/* ── REVIEW ── */
+#review { background:var(--bg); }
+.review-topbar { background:#fff; padding:13px 16px; display:flex; align-items:center; gap:11px; box-shadow:0 2px 8px rgba(0,0,0,0.06); }
+.review-back { width:32px; height:32px; background:var(--bg); border:none; border-radius:8px; cursor:pointer; font-size:14px; }
+.review-title { font-size:15px; font-weight:800; color:var(--text); }
+.review-body { padding:14px; flex:1; overflow-y:auto; }
+.review-item { background:#fff; border-radius:13px; padding:15px; margin-bottom:11px; box-shadow:var(--shadow); }
+.review-q-num { font-size:11px; color:var(--muted); margin-bottom:5px; }
+.review-q-text { font-size:14px; font-weight:700; color:var(--text); line-height:1.5; margin-bottom:11px; }
+.review-choices { display:flex; flex-direction:column; gap:6px; }
+.review-choice { display:flex; align-items:center; gap:9px; padding:9px 11px; border-radius:9px; background:var(--bg); border:1.5px solid transparent; font-size:13px; color:var(--text); }
+.review-choice.correct { border-color:var(--correct); background:#F0FFF4; color:#065F46; font-weight:700; }
+.review-choice.my-wrong { border-color:var(--wrong); background:#FFF5F5; color:#991B1B; }
+.review-expl { margin-top:9px; padding:9px 11px; background:#EEF2FF; border-radius:9px; font-size:12px; color:#374151; line-height:1.5; }
+.review-verse { font-size:11px; color:var(--primary); margin-top:3px; font-weight:600; }
+
+/* ── LEADERBOARD ── */
+#leaderboard { background:linear-gradient(160deg,#1A1A2E 0%,#16213E 60%,#0F3460 100%); }
+.lb-topbar { padding:14px 16px 11px; display:flex; align-items:center; gap:9px; border-bottom:1px solid rgba(255,255,255,0.07); }
+.lb-back { width:32px; height:32px; background:rgba(255,255,255,0.07); border:none; border-radius:8px; cursor:pointer; color:#fff; font-size:14px; flex-shrink:0; }
+.lb-title-wrap { flex:1; }
+.lb-title { font-size:16px; font-weight:800; color:#fff; }
+.lb-conn { font-size:10px; margin-top:1px; }
+.lb-conn.on { color:#4ADE80; } .lb-conn.off { color:#F87171; }
+.lb-clear { padding:4px 9px; background:rgba(192,57,43,0.17); border:1px solid rgba(192,57,43,0.32); border-radius:7px; color:#F87171; font-size:11px; cursor:pointer; font-family:inherit; }
+.lb-body { padding:13px; flex:1; overflow-y:auto; }
+.lb-toggle-row { display:flex; gap:5px; margin-bottom:9px; }
+.lb-tog { flex:1; padding:7px; border-radius:9px; border:1px solid rgba(255,255,255,0.13); background:transparent; color:rgba(255,255,255,0.45); font-size:11px; font-weight:600; cursor:pointer; font-family:inherit; }
+.lb-tog.active { background:var(--primary); border-color:var(--primary); color:#fff; }
+.lb-filter-row { display:flex; gap:5px; margin-bottom:13px; overflow-x:auto; padding-bottom:3px; scrollbar-width:none; }
+.lb-filter-row::-webkit-scrollbar { display:none; }
+.lf-btn { padding:4px 11px; border-radius:14px; border:1px solid rgba(255,255,255,0.12); background:transparent; color:rgba(255,255,255,0.42); font-size:11px; font-weight:600; cursor:pointer; white-space:nowrap; font-family:inherit; }
+.lf-btn.active { background:var(--secondary); border-color:var(--secondary); color:#fff; }
+.lb-live-badge { display:inline-flex; align-items:center; gap:4px; font-size:10px; color:#4ADE80; margin-bottom:10px; }
+.lb-live-dot { width:6px; height:6px; border-radius:50%; background:#4ADE80; animation:pulse 1.5s infinite; }
+@keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.5;transform:scale(0.8)} }
+.lb-row { background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.07); border-radius:12px; padding:12px 13px; margin-bottom:8px; display:flex; align-items:center; gap:11px; animation:slideUp 0.25s ease; }
+.lb-rank { font-size:16px; font-weight:900; width:24px; text-align:center; flex-shrink:0; }
+.lb-rank-1{color:#FFD700} .lb-rank-2{color:#C0C0C0} .lb-rank-3{color:#CD7F32}
+.lb-rank-o { color:rgba(255,255,255,0.25); font-size:12px; }
+.lb-info { flex:1; min-width:0; }
+.lb-name { font-size:14px; font-weight:700; color:#fff; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.lb-meta { font-size:10px; color:rgba(255,255,255,0.35); margin-top:2px; }
+.lb-score-col { text-align:right; flex-shrink:0; }
+.lb-pct { font-size:18px; font-weight:800; color:var(--secondary); }
+.lb-frac { font-size:10px; color:rgba(255,255,255,0.35); margin-top:1px; }
+.lb-me { font-size:9px; background:var(--primary); color:#fff; padding:1px 5px; border-radius:7px; margin-left:4px; vertical-align:middle; }
+.lb-new { font-size:9px; background:#C0392B; color:#fff; padding:1px 5px; border-radius:7px; margin-left:4px; vertical-align:middle; animation:pop 0.4s ease; }
+.lb-empty { text-align:center; color:rgba(255,255,255,0.28); font-size:13px; padding:44px 0; }
+.lb-empty-icon { font-size:40px; margin-bottom:9px; }
+.lb-loading { text-align:center; color:rgba(255,255,255,0.4); font-size:13px; padding:40px 0; }
+
+/* ── TOAST ── */
+.toast { position:fixed; bottom:28px; left:50%; transform:translateX(-50%) translateY(16px); background:rgba(20,20,20,0.93); color:#fff; padding:9px 20px; border-radius:18px; font-size:13px; font-weight:600; opacity:0; transition:all 0.3s; pointer-events:none; z-index:999; max-width:320px; text-align:center; }
+.toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
+
+@keyframes shake { 0%,100%{transform:translateX(0)} 20%,60%{transform:translateX(-5px)} 40%,80%{transform:translateX(5px)} }
+.shake { animation:shake 0.35s ease; }
+</style>
+</head>
+<body>
+
+<!-- ── HOME SCREEN ── -->
+<div class="screen" id="home">
+  <div class="home-header">
+    <div class="home-cross">✝️</div>
+    <div class="home-title">성경 퀴즈</div>
+    <div class="home-sub">BIBLE QUIZ · 250 QUESTIONS</div>
+    <div class="conn-badge offline" id="connBadge">
+      <div class="conn-dot"></div><span id="connText">오프라인</span>
+    </div>
+  </div>
+
+  <div class="name-wrap">
+    <div class="slabel">👤 참여자 이름</div>
+    <input class="name-input" id="nameInput" type="text" maxlength="12" placeholder="이름을 입력하세요" oninput="onNameInput()">
+  </div>
+
+  <div style="width:100%">
+    <div class="slabel" style="margin-bottom:7px">📖 성경 범위</div>
+    <div class="section-grid">
+      <div class="sec-card" data-section="신명기" onclick="toggleSection(this)"><div class="s-chk">✓</div><div class="s-icon">📜</div><div class="s-name">신명기</div><div class="s-cnt">67문제</div></div>
+      <div class="sec-card" data-section="여호수아" onclick="toggleSection(this)"><div class="s-chk">✓</div><div class="s-icon">⚔️</div><div class="s-name">여호수아</div><div class="s-cnt">67문제</div></div>
+      <div class="sec-card" data-section="사사기" onclick="toggleSection(this)"><div class="s-chk">✓</div><div class="s-icon">🦁</div><div class="s-name">사사기</div><div class="s-cnt">66문제</div></div>
+      <div class="sec-card" data-section="넌센스" onclick="toggleSection(this)"><div class="s-chk">✓</div><div class="s-icon">😄</div><div class="s-name">넌센스</div><div class="s-cnt">50문제</div></div>
+    </div>
+    <button class="all-btn" onclick="selectAll()">전체 선택 / 해제</button>
+  </div>
+
+  <div class="settings-box">
+    <button class="settings-toggle" onclick="toggleSettings(this)">
+      <div class="slabel">⚙️ 퀴즈 설정</div>
+      <span class="s-arrow">▼</span>
+    </button>
+    <div class="settings-content">
+      <div class="srow"><span class="srow-label">문제 수</span><div class="srow-ctrl"><button class="cbtn" data-key="count" data-val="10" onclick="setSetting(this)">10</button><button class="cbtn" data-key="count" data-val="20" onclick="setSetting(this)">20</button><button class="cbtn active" data-key="count" data-val="30" onclick="setSetting(this)">30</button><button class="cbtn" data-key="count" data-val="0" onclick="setSetting(this)">전체</button></div></div>
+      <div class="srow"><span class="srow-label">난이도</span><div class="srow-ctrl"><button class="cbtn active" data-key="diff" data-val="all" onclick="setSetting(this)">전체</button><button class="cbtn" data-key="diff" data-val="하" onclick="setSetting(this)">하</button><button class="cbtn" data-key="diff" data-val="중" onclick="setSetting(this)">중</button><button class="cbtn" data-key="diff" data-val="상" onclick="setSetting(this)">상</button></div></div>
+      <div class="srow"><span class="srow-label">순서</span><div class="srow-ctrl"><button class="cbtn active" data-key="order" data-val="random" onclick="setSetting(this)">랜덤</button><button class="cbtn" data-key="order" data-val="seq" onclick="setSetting(this)">순서대로</button></div></div>
+      <div class="srow"><span class="srow-label">해설</span><div class="srow-ctrl"><button class="cbtn active" data-key="explain" data-val="yes" onclick="setSetting(this)">보기</button><button class="cbtn" data-key="explain" data-val="no" onclick="setSetting(this)">숨기기</button></div></div>
+      <div class="srow"><span class="srow-label">타이머</span><div class="srow-ctrl"><button class="cbtn active" data-key="timer" data-val="0" onclick="setSetting(this)">없음</button><button class="cbtn" data-key="timer" data-val="15" onclick="setSetting(this)">15초</button><button class="cbtn" data-key="timer" data-val="30" onclick="setSetting(this)">30초</button></div></div>
+    </div>
+  </div>
+
+  <button class="resume-btn" id="resumeBtn" onclick="resumeQuiz()">▶️ 이어서 풀기 (<span id="resumeInfo"></span>)</button>
+  <button class="lb-btn" onclick="showLeaderboard()">🏆 공유 리더보드 보기</button>
+  <button class="start-btn" id="startBtn" onclick="startQuiz()" disabled>퀴즈 시작 🎯</button>
+</div>
+
+<!-- ── QUIZ SCREEN ── -->
+<div class="screen" id="quiz">
+  <div class="quiz-topbar">
+    <button class="q-back" onclick="confirmBack()">←</button>
+    <div class="q-pw">
+      <div class="q-pl"><span id="progText">1 / 30</span><span id="timerLabel" style="display:none">⏱ <span id="timerNum">15</span>초</span></div>
+      <div class="q-pb"><div class="q-pf" id="progFill" style="width:0%"></div></div>
+      <div class="timer-strip" id="timerStrip" style="display:none"><div class="timer-fill" id="timerFill" style="width:100%"></div></div>
+    </div>
+    <div class="q-score" id="qScore">0점</div>
+  </div>
+  <div class="quiz-body">
+    <div class="q-meta">
+      <span class="mbadge mb-section" id="mSection"></span>
+      <span class="mbadge" id="mDiff"></span>
+      <span class="combo-badge" id="comboBadge"></span>
+      <span class="mb-num" id="mNum"></span>
+    </div>
+    <div class="q-card"><div class="q-text" id="qText"></div></div>
+    <div class="choices" id="choicesList"></div>
+    <div class="expl-card" id="explCard"><div class="expl-hdr">💡 해설</div><div class="expl-text" id="explText"></div><div class="expl-verse" id="explVerse"></div></div>
+    <button class="next-btn" id="nextBtn" onclick="nextQuestion()">다음 문제 →</button>
+  </div>
+</div>
+
+<!-- ── RESULT SCREEN ── -->
+<div class="screen" id="result">
+  <div class="result-icon" id="resultIcon">🏆</div>
+  <div class="result-title" id="resultTitle">퀴즈 완료!</div>
+  <div class="score-ring">
+    <svg viewBox="0 0 160 160"><circle class="strack" cx="80" cy="80" r="65"/><circle class="sfill" id="sfill" cx="80" cy="80" r="65"/></svg>
+    <div class="score-center"><div class="score-pct" id="scorePct">0%</div><div class="score-lbl">정답률</div></div>
+  </div>
+  <div class="result-stats">
+    <div class="stat-box"><div class="stat-num" id="stTotal">0</div><div class="stat-lbl">전체</div></div>
+    <div class="stat-box"><div class="stat-num" style="color:#4ADE80" id="stCorrect">0</div><div class="stat-lbl">정답</div></div>
+    <div class="stat-box"><div class="stat-num" style="color:#F87171" id="stWrong">0</div><div class="stat-lbl">오답</div></div>
+    <div class="stat-box"><div class="stat-num" style="color:var(--secondary)" id="stCombo">0</div><div class="stat-lbl">최대콤보</div></div>
+  </div>
+  <div class="result-msg" id="resultMsg"></div>
+  <div class="result-btns">
+    <button class="rbtn rbtn-primary" onclick="retryQuiz()">🔄 다시 풀기</button>
+    <button class="rbtn rbtn-ghost" id="reviewBtn" onclick="showReview()" style="display:none">📝 오답 복습 (<span id="wrongCnt">0</span>문제)</button>
+    <button class="rbtn rbtn-ghost" onclick="shareResult()">📤 결과 공유</button>
+    <button class="rbtn rbtn-ghost" onclick="showLeaderboard()">🏆 리더보드 보기</button>
+    <button class="rbtn rbtn-ghost" onclick="goHome()">🏠 처음으로</button>
+  </div>
+</div>
+
+<!-- ── REVIEW SCREEN ── -->
+<div class="screen" id="review">
+  <div class="review-topbar">
+    <button class="review-back" onclick="showScreen('result')">←</button>
+    <div class="review-title">📝 오답 복습</div>
+  </div>
+  <div class="review-body" id="reviewBody"></div>
+</div>
+
+<!-- ── LEADERBOARD SCREEN ── -->
+<div class="screen" id="leaderboard">
+  <div class="lb-topbar">
+    <button class="lb-back" onclick="goHome()">←</button>
+    <div class="lb-title-wrap">
+      <div class="lb-title">🏆 공유 리더보드</div>
+      <div class="lb-conn off" id="lbConnStatus">● 연결 중...</div>
+    </div>
+    <button class="lb-clear" onclick="clearLb()">초기화</button>
+  </div>
+  <div class="lb-body">
+    <div class="lb-toggle-row">
+      <button class="lb-tog active" data-mode="all" onclick="setLbMode(this)">전체</button>
+      <button class="lb-tog" data-mode="best" onclick="setLbMode(this)">베스트</button>
+      <button class="lb-tog" data-mode="today" onclick="setLbMode(this)">오늘</button>
+    </div>
+    <div class="lb-filter-row">
+      <button class="lf-btn active" data-filter="all" onclick="setLbFilter(this)">전체</button>
+      <button class="lf-btn" data-filter="신명기" onclick="setLbFilter(this)">📜 신명기</button>
+      <button class="lf-btn" data-filter="여호수아" onclick="setLbFilter(this)">⚔️ 여호수아</button>
+      <button class="lf-btn" data-filter="사사기" onclick="setLbFilter(this)">🦁 사사기</button>
+      <button class="lf-btn" data-filter="넌센스" onclick="setLbFilter(this)">😄 넌센스</button>
+    </div>
+    <div class="lb-live-badge" id="liveBadge" style="display:none"><div class="lb-live-dot"></div>실시간 업데이트 중</div>
+    <div id="lbList"><div class="lb-loading">불러오는 중...</div></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const QUIZ_DATA = [{"id": 1, "section": "신명기", "question": "모세가 요단 저쪽 모압 땅에서 설교를 시작한 때는?", "choices": ["10년", "20년", "30년", "40년"], "answer": 3, "explanation": "출애굽 제40년 11월 1일입니다.", "difficulty": "하", "verse": "신 1:3"}, {"id": 2, "section": "신명기", "question": "하나님이 광야에서 이스라엘을 어떻게 인도하셨나요?", "choices": ["독수리", "구름", "사람이 아들을 안음", "불"], "answer": 2, "explanation": "아버지가 아들을 안는 것처럼 보호하셨습니다.", "difficulty": "중", "verse": "신 1:31"}, {"id": 3, "section": "신명기", "question": "에서의 자손에게 기업으로 주신 산의 이름은?", "choices": ["세일 산", "시내 산", "에발 산", "느보 산"], "answer": 0, "explanation": "세일 산은 에서의 소유이므로 다투지 말라 하셨습니다.", "difficulty": "중", "verse": "신 2:5"}, {"id": 4, "section": "신명기", "question": "바산 왕 옥의 침대는 무엇으로 만들어졌나요?", "choices": ["금", "은", "철", "구리"], "answer": 2, "explanation": "거인 왕 옥의 철 침대는 크기가 매우 컸습니다.", "difficulty": "상", "verse": "신 3:11"}, {"id": 5, "section": "신명기", "question": "하나님의 명령에 대해 우리가 지켜야 할 원칙은?", "choices": ["가감하지 말라", "조금 고쳐라", "왕만 지켜라", "외워라"], "answer": 0, "explanation": "말씀을 더하거나 빼지 말고 그대로 지켜야 합니다.", "difficulty": "하", "verse": "신 4:2"}, {"id": 6, "section": "신명기", "question": "십계명 중 제4계명은 무엇입니까?", "choices": ["부모 공경", "안식일 준수", "살인 금지", "간음 금지"], "answer": 1, "explanation": "안식일을 기억하여 거룩하게 지키라는 명령입니다.", "difficulty": "하", "verse": "신 5:12"}, {"id": 7, "section": "신명기", "question": "이스라엘의 신앙 고백인 \"쉐마\"는 몇 장인가요?", "choices": ["1장", "5장", "6장", "12장"], "answer": 2, "explanation": "신명기 6:4-9은 가장 중요한 교육 말씀입니다.", "difficulty": "하", "verse": "신 6:4"}, {"id": 8, "section": "신명기", "question": "하나님을 사랑할 때 무엇을 다해야 하나요?", "choices": ["돈", "시간", "마음, 뜻, 힘", "지식"], "answer": 2, "explanation": "전 인격적인 사랑을 요구하십니다.", "difficulty": "하", "verse": "신 6:5"}, {"id": 9, "section": "신명기", "question": "하나님이 이스라엘을 택하신 이유는?", "choices": ["수효가 많아서", "수효가 적어서", "지혜로워서", "착해서"], "answer": 1, "explanation": "인간의 조건이 아닌 하나님의 전적인 사랑 때문입니다.", "difficulty": "중", "verse": "신 7:7"}, {"id": 10, "section": "신명기", "question": "사람이 떡으로만 사는 것이 아니요 무엇으로 삽니까?", "choices": ["재물", "건강", "여호와의 입의 말씀", "권력"], "answer": 2, "explanation": "광야 만나 훈련을 통해 주신 핵심 교훈입니다.", "difficulty": "하", "verse": "신 8:3"}, {"id": 11, "section": "신명기", "question": "광야 40년 동안 이스라엘의 옷은 어떠했나요?", "choices": ["낡았다", "해어지지 않았다", "작아졌다", "화려했다"], "answer": 1, "explanation": "하나님의 세밀한 돌보심으로 해어지지 않았습니다.", "difficulty": "중", "verse": "신 8:4"}, {"id": 12, "section": "신명기", "question": "모세가 돌판을 받기 위해 산에 머문 기간은?", "choices": ["7일", "12일", "40일", "70일"], "answer": 2, "explanation": "사십 주야를 금식하며 머물렀습니다.", "difficulty": "하", "verse": "신 9:9"}, {"id": 13, "section": "신명기", "question": "하나님이 요구하시는 것 중 아닌 것은?", "choices": ["경외함", "사랑함", "화려한 제사", "도를 행함"], "answer": 2, "explanation": "하나님은 건물이나 제사보다 순종을 원하십니다.", "difficulty": "중", "verse": "신 10:12"}, {"id": 14, "section": "신명기", "question": "순종할 때 주시는 복된 비의 명칭은?", "choices": ["장마비", "소나기", "이른 비와 늦은 비", "가을비"], "answer": 2, "explanation": "농경 사회에서 가장 큰 축복의 비입니다.", "difficulty": "중", "verse": "신 11:14"}, {"id": 15, "section": "신명기", "question": "제사 때 결코 먹지 말고 땅에 쏟아야 할 것은?", "choices": ["고기", "피", "가죽", "힘줄"], "answer": 1, "explanation": "피는 생명이므로 절대로 먹지 말라 하셨습니다.", "difficulty": "하", "verse": "신 12:23"}, {"id": 16, "section": "신명기", "question": "정한 짐승의 기준은 굽이 갈라지고 무엇을 하나요?", "choices": ["새김질", "헤엄", "날기", "높이뛰기"], "answer": 0, "explanation": "쪽발이며 새김질하는 것이 정한 짐승입니다.", "difficulty": "하", "verse": "신 14:6"}, {"id": 17, "section": "신명기", "question": "7년마다 돌아오는 빚을 면제해주는 해의 이름은?", "choices": ["희년", "면제년", "안식년", "유월절"], "answer": 1, "explanation": "가난한 자를 배려하는 자비의 법입니다.", "difficulty": "중", "verse": "신 15:1"}, {"id": 18, "section": "신명기", "question": "이스라엘의 3대 절기가 아닌 것은?", "choices": ["유월절", "칠칠절", "초막절", "수전절"], "answer": 3, "explanation": "유월절, 칠칠절, 초막절이 3대 절기입니다.", "difficulty": "하", "verse": "신 16:16"}, {"id": 19, "section": "신명기", "question": "재판관이 판결할 때 금지해야 할 행동은?", "choices": ["기록하기", "질문하기", "뇌물 받기", "인사 받기"], "answer": 2, "explanation": "뇌물은 지혜로운 자의 눈을 어둡게 합니다.", "difficulty": "하", "verse": "신 16:19"}, {"id": 20, "section": "신명기", "question": "이스라엘 왕이 평생 옆에 두고 읽어야 할 것은?", "choices": ["무예지", "보물지도", "율법서 등사본", "이방 서적"], "answer": 2, "explanation": "왕은 하나님 말씀의 통치를 받아야 합니다.", "difficulty": "중", "verse": "신 17:18"}, {"id": 21, "section": "신명기", "question": "선지자의 증거가 하나님께 왔는지 아는 법은?", "choices": ["나이", "외모", "증험과 성취", "목소리"], "answer": 2, "explanation": "말한 대로 이루어지는지가 기준입니다.", "difficulty": "상", "verse": "신 18:22"}, {"id": 22, "section": "신명기", "question": "실수로 사람을 죽인 자가 숨는 성읍은?", "choices": ["요새", "왕궁", "도피성", "성전"], "answer": 2, "explanation": "부지중 살인자의 생명을 보호하는 곳입니다.", "difficulty": "하", "verse": "신 19:2"}, {"id": 23, "section": "신명기", "question": "증인을 세울 때 몇 명 이상이어야 확정되나요?", "choices": ["1명", "2~3명", "5명", "10명"], "answer": 1, "explanation": "한 사람의 증언으로는 확정할 수 없습니다.", "difficulty": "하", "verse": "신 19:15"}, {"id": 24, "section": "신명기", "question": "전쟁 중 두려워하는 자는 어떻게 해야 하나요?", "choices": ["징계함", "집으로 보냄", "앞장세움", "감옥행"], "answer": 1, "explanation": "다른 형제들을 낙심시키지 않기 위함입니다.", "difficulty": "중", "verse": "신 20:8"}, {"id": 25, "section": "신명기", "question": "전쟁 중 찍어버리지 말아야 할 나무는?", "choices": ["가시나무", "백향목", "과목(열매 나무)", "버드나무"], "answer": 2, "explanation": "먹을 자원은 보호해야 함을 가르치십니다.", "difficulty": "상", "verse": "신 20:19"}, {"id": 26, "section": "신명기", "question": "나무에 달린 시체를 밤새 두지 말아야 할 이유는?", "choices": ["냄새나서", "땅을 더럽히지 않기 위해", "무서워서", "짐승 때문"], "answer": 1, "explanation": "나무에 달린 자는 하나님께 저주를 받았음입니다.", "difficulty": "중", "verse": "신 21:23"}, {"id": 27, "section": "신명기", "question": "여호와의 총회에 영원히 못 들어오는 족속은?", "choices": ["애굽", "에돔", "암몬과 모압", "가나안"], "answer": 2, "explanation": "이스라엘의 길을 방해하고 저주했기 때문입니다.", "difficulty": "상", "verse": "신 23:3"}, {"id": 28, "section": "신명기", "question": "새로 장가든 남자는 얼마간 군대를 면제받나요?", "choices": ["1개월", "6개월", "1년", "3년"], "answer": 2, "explanation": "아내를 즐겁게 할 가정을 배려하심입니다.", "difficulty": "중", "verse": "신 24:5"}, {"id": 29, "section": "신명기", "question": "곡식 떠는 소에게 금지된 행동은 무엇입니까?", "choices": ["망 씌우기", "채찍질", "잠자기", "노래하기"], "answer": 0, "explanation": "일하는 짐승의 권리도 존중하라는 법입니다.", "difficulty": "중", "verse": "신 25:4"}, {"id": 30, "section": "신명기", "question": "축복을 선포하기 위해 서야 할 산은?", "choices": ["에발 산", "그리심 산", "시내 산", "호르 산"], "answer": 1, "explanation": "축복은 그리심, 저주는 에발 산입니다.", "difficulty": "하", "verse": "신 27:12"}, {"id": 31, "section": "신명기", "question": "순종할 때 받는 복으로, 들어와도 복을 받고?", "choices": ["잠을 자도", "나가도", "먹어도", "쉬어도"], "answer": 1, "explanation": "삶의 모든 출입에 복을 주신다는 약속입니다.", "difficulty": "하", "verse": "신 28:6"}, {"id": 32, "section": "신명기", "question": "순종하면 머리가 되고 무엇이 되지 않나요?", "choices": ["다리", "어깨", "꼬리", "허리"], "answer": 2, "explanation": "주권과 영향력의 복을 의미합니다.", "difficulty": "하", "verse": "신 28:13"}, {"id": 33, "section": "신명기", "question": "불순종하면 떡 반죽 그릇은 어떻게 되나요?", "choices": ["넘친다", "금이 간다", "저주를 받음", "사라짐"], "answer": 2, "explanation": "일상의 기초 도구까지 저주가 임합니다.", "difficulty": "중", "verse": "신 28:17"}, {"id": 34, "section": "신명기", "question": "\"감추어진 일\"은 누구에게 속하였나요?", "choices": ["모세", "선지자", "여호와 하나님", "천사"], "answer": 2, "explanation": "하나님의 주권적 비밀을 인정해야 합니다.", "difficulty": "상", "verse": "신 29:29"}, {"id": 35, "section": "신명기", "question": "생명과 복, 사망과 화를 어디에 두셨나요?", "choices": ["하늘", "바다", "네 앞에", "지옥"], "answer": 2, "explanation": "선택과 책임이 각자에게 있음을 뜻합니다.", "difficulty": "하", "verse": "신 30:15"}, {"id": 36, "section": "신명기", "question": "모세의 뒤를 잇는 후계자로 지명된 자는?", "choices": ["갈렙", "아론", "여호수아", "엘르아살"], "answer": 2, "explanation": "모세의 안수로 지혜의 영이 충만했습니다.", "difficulty": "하", "verse": "신 31:7"}, {"id": 37, "section": "신명기", "question": "7년마다 초막절에 율법을 어떻게 해야 하나요?", "choices": ["숨긴다", "낭독함", "태운다", "베개로 씀"], "answer": 1, "explanation": "모든 백성이 듣고 배우게 해야 합니다.", "difficulty": "중", "verse": "신 31:11"}, {"id": 38, "section": "신명기", "question": "모세의 노래에서 하나님을 비유한 칭호는?", "choices": ["바람", "반석", "안개", "불꽃"], "answer": 1, "explanation": "완전하고 진실하며 신실하신 분입니다.", "difficulty": "하", "verse": "신 32:4"}, {"id": 39, "section": "신명기", "question": "모세가 축복할 때 \"여호와의 사랑을 입은 자\"는?", "choices": ["유다", "베냐민", "요셉", "단"], "answer": 1, "explanation": "베냐민은 하나님 곁에 안전히 거합니다.", "difficulty": "상", "verse": "신 33:12"}, {"id": 40, "section": "신명기", "question": "모세가 가나안을 바라본 산 꼭대기는?", "choices": ["비스가 산", "갈멜 산", "헬몬 산", "시온 산"], "answer": 0, "explanation": "느보 산에 있는 비스가 산 꼭대기입니다.", "difficulty": "하", "verse": "신 34:1"}, {"id": 41, "section": "신명기", "question": "모세가 죽었을 때 그의 나이는?", "choices": ["80세", "100세", "120세", "150세"], "answer": 2, "explanation": "120세에도 기력이 쇠하지 않았습니다.", "difficulty": "하", "verse": "신 34:7"}, {"id": 42, "section": "신명기", "question": "여호와께서 모압 평지에서 누구를 통해 말씀하셨나?", "choices": ["아론", "미리암", "모세", "여호수아"], "answer": 2, "explanation": "신명기 전체는 모세의 설교입니다.", "difficulty": "하", "verse": "신 1:1"}, {"id": 43, "section": "신명기", "question": "가데스 바네아에서 보낸 정탐꾼은 몇 명인가?", "choices": ["2명", "7명", "10명", "12명"], "answer": 3, "explanation": "각 지파에서 한 사람씩 뽑았습니다.", "difficulty": "중", "verse": "신 1:23"}, {"id": 44, "section": "신명기", "question": "하나님이 불 가운데서 주신 것은 무엇인가?", "choices": ["금", "십계명", "음식", "옷"], "answer": 1, "explanation": "호렙 산에서 직접 말씀하신 법입니다.", "difficulty": "하", "verse": "신 5:22"}, {"id": 45, "section": "신명기", "question": "하나님의 말씀을 어디에 기록하라고 했나?", "choices": ["하늘", "손목과 미간", "나무", "바다"], "answer": 1, "explanation": "항상 기억하고 전수하라는 의미입니다.", "difficulty": "중", "verse": "신 6:8"}, {"id": 46, "section": "신명기", "question": "가나안 일곱 족속을 어떻게 하라고 하셨나?", "choices": ["친구 삼기", "진멸하기", "노예 삼기", "방치하기"], "answer": 1, "explanation": "우상 숭배의 죄에 오염되지 않기 위함입니다.", "difficulty": "중", "verse": "신 7:2"}, {"id": 47, "section": "신명기", "question": "광야 40년 동안 이스라엘의 발은 어떠했나?", "choices": ["부르텄다", "부르트지 않았다", "잘렸다", "아팠다"], "answer": 1, "explanation": "하나님의 초자연적 돌보심입니다.", "difficulty": "중", "verse": "신 8:4"}, {"id": 48, "section": "신명기", "question": "모세가 깨뜨린 돌판은 무엇 때문이었나?", "choices": ["무거워서", "금송아지 배교", "실수", "더러워서"], "answer": 1, "explanation": "언약이 파괴되었음을 상징합니다.", "difficulty": "하", "verse": "신 9:17"}, {"id": 49, "section": "신명기", "question": "하나님이 사람을 무엇으로 보지 않으시나?", "choices": ["외모", "지갑", "이름", "학벌"], "answer": 0, "explanation": "중심을 보시는 공의로운 하나님입니다.", "difficulty": "하", "verse": "신 10:17"}, {"id": 50, "section": "신명기", "question": "가나안 땅은 어떤 곳이라 하셨나?", "choices": ["비가 안 옴", "물을 흡수하는 땅", "광야", "바다"], "answer": 1, "explanation": "하늘에서 내리는 비를 흡수하는 복된 땅입니다.", "difficulty": "상", "verse": "신 11:11"}, {"id": 51, "section": "신명기", "question": "피를 먹지 말고 어디에 부으라고 하셨나?", "choices": ["잔", "제단", "땅", "옷"], "answer": 2, "explanation": "물 같이 땅에 쏟으라고 하셨습니다.", "difficulty": "중", "verse": "신 12:24"}, {"id": 52, "section": "신명기", "question": "꿈꾸는 자가 다른 신을 섬기자면 어떻게 하나?", "choices": ["따른다", "죽여라", "상 준다", "토론한다"], "answer": 1, "explanation": "신앙의 순결을 위한 엄격한 조치입니다.", "difficulty": "상", "verse": "신 13:5"}, {"id": 53, "section": "신명기", "question": "자기를 위하여 몸을 베지 말아야 할 이유는?", "choices": ["아파서", "성민(거룩한 백성)이므로", "돈 들어서", "흉해서"], "answer": 1, "explanation": "이방 풍습을 따르지 말라는 뜻입니다.", "difficulty": "중", "verse": "신 14:1"}, {"id": 54, "section": "신명기", "question": "면제년에 가난한 형제에게 어떻게 해야 하나?", "choices": ["모른 척", "손을 펴서 빌려줌", "꾸짖음", "도망감"], "answer": 1, "explanation": "넉넉히 쓸 것을 빌려주라 하셨습니다.", "difficulty": "하", "verse": "신 15:8"}, {"id": 55, "section": "신명기", "question": "처음 난 모든 수컷은 어떻게 해야 하나?", "choices": ["잡아먹기", "여호와께 구별하여 드림", "팔기", "버리기"], "answer": 1, "explanation": "모든 첫 열매와 생명은 주님의 것입니다.", "difficulty": "중", "verse": "신 15:19"}, {"id": 56, "section": "신명기", "question": "칠칠절을 지킬 때 예물은 어떻게 드리는가?", "choices": ["억지로", "복을 주신 대로 힘을 다해", "적게", "금으로"], "answer": 1, "explanation": "은혜에 감사하는 자발적 헌신입니다.", "difficulty": "중", "verse": "신 16:10"}, {"id": 57, "section": "신명기", "question": "왕은 아내를 많이 두어 마음이 ( ) 않게 해야 한다.", "choices": ["기쁘지", "미혹되지", "슬프지", "강해지지"], "answer": 1, "explanation": "우상 숭배와 타락을 방지하기 위함입니다.", "difficulty": "중", "verse": "신 17:17"}, {"id": 58, "section": "신명기", "question": "레위 사람의 분깃과 기업은 무엇인가?", "choices": ["땅", "여호와 하나님", "금", "소"], "answer": 1, "explanation": "하나님이 직접 그들의 기업이 되십니다.", "difficulty": "중", "verse": "신 18:2"}, {"id": 59, "section": "신명기", "question": "이웃의 경계표를 어떻게 해야 하는가?", "choices": ["옮기기", "옮기지 말기", "없애기", "바꾸기"], "answer": 1, "explanation": "조상이 정한 지계석을 건드리지 말라 하셨습니다.", "difficulty": "하", "verse": "신 19:14"}, {"id": 60, "section": "신명기", "question": "전쟁하러 나갈 때 누가 가장 먼저 말하는가?", "choices": ["왕", "제사장", "정탐꾼", "장군"], "answer": 1, "explanation": "하나님이 함께하심을 선포해야 합니다.", "difficulty": "상", "verse": "신 20:2"}, {"id": 61, "section": "신명기", "question": "살인자가 누군지 모를 때 드리는 제물은?", "choices": ["소", "암송아지", "양", "비둘기"], "answer": 1, "explanation": "공동체의 책임을 묻는 예식입니다.", "difficulty": "상", "verse": "신 21:3"}, {"id": 62, "section": "신명기", "question": "길에서 남의 소나 양이 길 잃은 것을 보면?", "choices": ["모른 척", "반드시 끌어다 돌려줌", "가짐", "잡음"], "answer": 1, "explanation": "이웃의 재산을 내 것처럼 돌봐야 합니다.", "difficulty": "하", "verse": "신 22:1"}, {"id": 63, "section": "신명기", "question": "남녀의 의복에 대한 규례는 무엇인가?", "choices": ["섞어 입기", "바꾸어 입지 말기", "마음대로", "비싼 것"], "answer": 1, "explanation": "창조의 질서를 지키라는 의미입니다.", "difficulty": "중", "verse": "신 22:5"}, {"id": 64, "section": "신명기", "question": "여호와의 총회에 영원히 들어오지 못하는 신체 결함은?", "choices": ["대머리", "고자(고환이 상한 자)", "안경", "수염"], "answer": 1, "explanation": "거룩한 공동체의 온전함을 상징합니다.", "difficulty": "상", "verse": "신 23:1"}, {"id": 65, "section": "신명기", "question": "이웃의 포도원에 들어갔을 때 금지 사항은?", "choices": ["먹기", "그릇에 담아 가기", "주인 찾기", "노래"], "answer": 1, "explanation": "배고픔은 달래주되 도둑질은 금지입니다.", "difficulty": "중", "verse": "신 23:24"}, {"id": 66, "section": "신명기", "question": "맷돌을 전당 잡지 말아야 할 이유는 무엇인가?", "choices": ["무거워서", "생명을 전당 잡는 것임", "싸서", "더러워서"], "answer": 1, "explanation": "생계 도구는 함부로 뺏지 못합니다.", "difficulty": "상", "verse": "신 24:6"}, {"id": 67, "section": "신명기", "question": "십일조를 드리는 제삼년은 무슨 해인가?", "choices": ["축제의 해", "십일조의 해", "전쟁의 해", "금식의 해"], "answer": 1, "explanation": "레위인과 가난한 자를 돕는 해입니다.", "difficulty": "중", "verse": "신 26:12"}, {"id": 68, "section": "여호수아", "question": "하나님이 여호수아에게 하신 약속은?", "choices": ["금을 주겠다", "너와 함께 하리라", "키를 크게 함", "왕관 주마"], "answer": 1, "explanation": "\"내가 너를 떠나지 아니하리라\" 하셨습니다.", "difficulty": "하", "verse": "수 1:5"}, {"id": 69, "section": "여호수아", "question": "형통의 비결로 주야로 해야 할 일은?", "choices": ["운동", "말씀 묵상", "낮잠", "전쟁 연습"], "answer": 1, "explanation": "율법책을 입에서 떠나지 않게 해야 합니다.", "difficulty": "하", "verse": "수 1:8"}, {"id": 70, "section": "여호수아", "question": "여리고를 정탐한 사람은 몇 명인가요?", "choices": ["2명", "7명", "12명", "70명"], "answer": 0, "explanation": "여호수아가 은밀히 보낸 정탐꾼 수입니다.", "difficulty": "하", "verse": "수 2:1"}, {"id": 71, "section": "여호수아", "question": "정탐꾼을 숨겨준 기생의 이름은?", "choices": ["라합", "룻", "들릴라", "미갈"], "answer": 0, "explanation": "믿음으로 하나님의 사람을 도운 여인입니다.", "difficulty": "하", "verse": "수 2:1"}, {"id": 72, "section": "여호수아", "question": "라합이 창문에 맨 구원의 표시는?", "choices": ["하얀 천", "붉은 줄", "나무", "등불"], "answer": 1, "explanation": "이 표식을 통해 라합의 집이 보존되었습니다.", "difficulty": "하", "verse": "수 2:21"}, {"id": 73, "section": "여호수아", "question": "요단강을 건널 때 맨 앞에 선 사람들은?", "choices": ["지휘관", "언약궤 멘 제사장", "어린이", "노인"], "answer": 1, "explanation": "하나님의 임재가 가장 앞장섰습니다.", "difficulty": "중", "verse": "수 3:3"}, {"id": 74, "section": "여호수아", "question": "요단강 물은 언제 멈추어 섰나요?", "choices": ["소리 지를 때", "발이 물에 닿을 때", "기도할 때", "해 뜰 때"], "answer": 1, "explanation": "순종하여 발을 담그자 물이 끊겼습니다.", "difficulty": "중", "verse": "수 3:15"}, {"id": 75, "section": "여호수아", "question": "요단강 도하 기념으로 세운 돌의 개수는?", "choices": ["7개", "10개", "12개", "40개"], "answer": 2, "explanation": "이스라엘 12지파를 상징합니다.", "difficulty": "하", "verse": "수 4:3"}, {"id": 76, "section": "여호수아", "question": "가나안에 들어와 길갈에서 행한 예식은?", "choices": ["결혼", "세례", "할례", "축제"], "answer": 2, "explanation": "언약 백성으로서의 정체성을 회복했습니다.", "difficulty": "중", "verse": "수 5:2"}, {"id": 77, "section": "여호수아", "question": "만나가 그친 시점은 언제인가요?", "choices": ["입성 전", "땅의 소산을 먹은 날", "함락 후", "모세 사후"], "answer": 1, "explanation": "약속의 땅 양식을 먹자 만나가 멈췄습니다.", "difficulty": "중", "verse": "수 5:12"}, {"id": 78, "section": "여호수아", "question": "여리고 정복 전 만난 군대 장관은?", "choices": ["천사", "모세 유령", "여호와의 군대 대장", "왕"], "answer": 2, "explanation": "하나님이 직접 전쟁을 지휘하심을 뜻합니다.", "difficulty": "상", "verse": "수 5:14"}, {"id": 79, "section": "여호수아", "question": "여리고 성을 매일 몇 번씩 돌았나요?", "choices": ["1번", "3번", "7번", "12번"], "answer": 0, "explanation": "마지막 날 전까지 매일 한 바퀴씩 돌았습니다.", "difficulty": "하", "verse": "수 6:3"}, {"id": 80, "section": "여호수아", "question": "마지막 날에 여리고 성을 몇 번 돌았나요?", "choices": ["1번", "3번", "7번", "10번"], "answer": 2, "explanation": "일곱째 날에는 일곱 바퀴를 돌았습니다.", "difficulty": "하", "verse": "수 6:4"}, {"id": 81, "section": "여호수아", "question": "아간이 훔친 물건 중 외투는 어디 산인가?", "choices": ["시날 산", "에발 산", "갈멜 산", "시내 산"], "answer": 0, "explanation": "시날 산의 아름다운 외투를 탐냈습니다.", "difficulty": "상", "verse": "수 7:21"}, {"id": 82, "section": "여호수아", "question": "아간의 범죄로 이스라엘이 패배한 성은?", "choices": ["여리고", "아이 성", "예루살렘", "세겜"], "answer": 1, "explanation": "작은 성이었으나 죄 때문에 패했습니다.", "difficulty": "하", "verse": "수 7:4"}, {"id": 83, "section": "여호수아", "question": "아간이 심판받아 죽은 골짜기의 이름은?", "choices": ["기드론", "아골 골짜기", "에셀", "힌놈"], "answer": 1, "explanation": "괴로움'이라는 뜻의 골짜기입니다.", "difficulty": "중", "verse": "수 7:26"}, {"id": 84, "section": "여호수아", "question": "아이 성 정복을 위해 사용한 전술은?", "choices": ["정면 돌파", "매복", "수로 침투", "고사 작전"], "answer": 1, "explanation": "군사를 성 뒤편에 숨겨 점령했습니다.", "difficulty": "중", "verse": "수 8:3"}, {"id": 85, "section": "여호수아", "question": "낡은 옷과 곰팡이 떡으로 속인 부족은?", "choices": ["여리고", "기브온 주민", "아모리", "헷"], "answer": 1, "explanation": "멸망을 피하려고 거짓 화친을 맺었습니다.", "difficulty": "중", "verse": "수 9:3"}, {"id": 86, "section": "여호수아", "question": "이스라엘이 기브온에게 속은 원인은?", "choices": ["불쌍해서", "하나님께 묻지 않아서", "지도가 없음", "돈"], "answer": 1, "explanation": "기도를 생략하고 겉모습만 믿었습니다.", "difficulty": "중", "verse": "수 9:14"}, {"id": 87, "section": "여호수아", "question": "태양아 너는 ( ) 위에 머무르라.", "choices": ["여리고", "요단", "기브온", "헤브론"], "answer": 2, "explanation": "전쟁 중 시간이 멈추는 이적이 일어났습니다.", "difficulty": "상", "verse": "수 10:12"}, {"id": 88, "section": "여호수아", "question": "여호수아가 정복한 왕들의 총 합계는?", "choices": ["12명", "24명", "31명", "40명"], "answer": 2, "explanation": "가나안 전역의 31개 왕을 정복했습니다.", "difficulty": "상", "verse": "수 12:24"}, {"id": 89, "section": "여호수아", "question": "\"이 산지를 내게 주소서\"라고 고백한 자는?", "choices": ["여호수아", "갈렙", "옷니엘", "삼손"], "answer": 1, "explanation": "85세의 나이에도 믿음의 용기를 가졌습니다.", "difficulty": "하", "verse": "수 14:12"}, {"id": 90, "section": "여호수아", "question": "갈렙이 정복하여 얻은 기업의 이름은?", "choices": ["헤브론", "예루살렘", "단", "가사"], "answer": 0, "explanation": "본래 이름은 기럇 아르바였습니다.", "difficulty": "중", "verse": "수 14:15"}, {"id": 91, "section": "여호수아", "question": "유다 지파 중 갈렙의 사위가 된 사사는?", "choices": ["옷니엘", "에훗", "기드온", "삼갈"], "answer": 0, "explanation": "기럇 세벨 정복 공로로 악사와 결혼합니다.", "difficulty": "중", "verse": "수 15:17"}, {"id": 92, "section": "여호수아", "question": "회막을 세우고 땅을 분배한 중심지는?", "choices": ["길갈", "실로", "벧엘", "세겜"], "answer": 1, "explanation": "이스라엘의 영적 거점이 실로로 옮겨졌습니다.", "difficulty": "중", "verse": "수 18:1"}, {"id": 93, "section": "여호수아", "question": "마지막으로 땅을 분배받은 지파는?", "choices": ["유다", "에브라임", "단 지파", "베냐민"], "answer": 2, "explanation": "단 지파가 일곱째로 제비를 뽑았습니다.", "difficulty": "상", "verse": "수 19:40"}, {"id": 94, "section": "여호수아", "question": "여호수아가 기업으로 받은 성읍은?", "choices": ["딤낫 세라", "베들레헴", "예리코", "라이스"], "answer": 0, "explanation": "에브라임 산지에 있는 성읍입니다.", "difficulty": "상", "verse": "수 19:50"}, {"id": 95, "section": "여호수아", "question": "도피성은 무엇을 방지하기 위해 세웠나요?", "choices": ["도둑질", "피의 보복", "우상 숭배", "전쟁"], "answer": 1, "explanation": "부지중 살인자를 보호하기 위함입니다.", "difficulty": "하", "verse": "수 20:2"}, {"id": 96, "section": "여호수아", "question": "레위 지파가 받은 성읍은 총 몇 개인가요?", "choices": ["12개", "24개", "48개", "70개"], "answer": 2, "explanation": "각 지파에서 나누어 준 성읍 수입니다.", "difficulty": "상", "verse": "수 21:41"}, {"id": 97, "section": "여호수아", "question": "요단 동쪽 지파가 세운 증거의 제단은?", "choices": ["에드", "엘벧엘", "여호와 닛시", "여호와 살롬"], "answer": 0, "explanation": "증거'라는 뜻을 가진 이름입니다.", "difficulty": "중", "verse": "수 22:34"}, {"id": 98, "section": "여호수아", "question": "\"오직 나와 내 집은 ( )를 섬기겠노라\"", "choices": ["바알", "여호와", "돈", "우상"], "answer": 1, "explanation": "여호수아 고별 설교의 핵심입니다.", "difficulty": "하", "verse": "수 24:15"}, {"id": 99, "section": "여호수아", "question": "여호수아가 죽었을 때 나이는?", "choices": ["100세", "110세", "120세", "130세"], "answer": 1, "explanation": "110세에 소천하여 장사되었습니다.", "difficulty": "하", "verse": "수 24:29"}, {"id": 100, "section": "여호수아", "question": "이스라엘이 애굽에서 가져온 누구의 뼈인가?", "choices": ["아브라함", "요셉", "야곱", "이삭"], "answer": 1, "explanation": "요셉의 유언대로 세겜에 장사했습니다.", "difficulty": "중", "verse": "수 24:32"}, {"id": 101, "section": "여호수아", "question": "\"네 발에서 신을 벗으라\"고 한 곳은?", "choices": ["여리고", "길갈", "거룩한 곳", "요단"], "answer": 2, "explanation": "하나님이 임재하신 곳은 거룩합니다.", "difficulty": "중", "verse": "수 5:15"}, {"id": 102, "section": "여호수아", "question": "여리고 성에서 오직 누구만 살려주었나?", "choices": ["왕", "라합과 그 가족", "군인", "부자"], "answer": 1, "explanation": "약속대로 라합의 집만 보존되었습니다.", "difficulty": "하", "verse": "수 6:23"}, {"id": 103, "section": "여호수아", "question": "아간의 죄를 찾기 위해 사용한 방법은?", "choices": ["제비 뽑기", "달리기", "투표", "고문"], "answer": 0, "explanation": "하나님이 범죄자를 지목하게 하셨습니다.", "difficulty": "중", "verse": "수 7:16"}, {"id": 104, "section": "여호수아", "question": "아이 성 정복 후 에발 산에 무엇을 세웠나?", "choices": ["왕궁", "제단", "학교", "별장"], "answer": 1, "explanation": "하나님께 번제와 화목제를 드렸습니다.", "difficulty": "상", "verse": "수 8:30"}, {"id": 105, "section": "여호수아", "question": "기브온 주민들은 이스라엘의 무엇이 되었나?", "choices": ["왕", "나무 패며 물 긷는 자", "군사", "장로"], "answer": 1, "explanation": "종의 신분으로 성막을 섬기게 되었습니다.", "difficulty": "중", "verse": "수 9:27"}, {"id": 106, "section": "여호수아", "question": "여호수아가 아모리 다섯 왕을 가두어둔 굴은?", "choices": ["막게다 굴", "아둘람 굴", "엔게디 굴", "소돔 굴"], "answer": 0, "explanation": "왕들을 잡아 처형한 장소입니다.", "difficulty": "상", "verse": "수 10:16"}, {"id": 107, "section": "여호수아", "question": "정복한 가나안 북방 연합군의 수장은?", "choices": ["야빈", "시스라", "멜기세덱", "아도니세덱"], "answer": 0, "explanation": "하솔 왕 야빈이 주도했습니다.", "difficulty": "상", "verse": "수 11:1"}, {"id": 108, "section": "여호수아", "question": "여호수아가 늙었을 때 남은 땅은 어떠했나?", "choices": ["없었다", "매우 많았다", "조금 남음", "다 정복함"], "answer": 1, "explanation": "정복할 땅이 여전히 많다고 하셨습니다.", "difficulty": "중", "verse": "수 13:1"}, {"id": 109, "section": "여호수아", "question": "갈렙은 정탐꾼 시절 누구에게 충성했나?", "choices": ["여호와 하나님", "바로", "가나안 왕", "자기 자신"], "answer": 0, "explanation": "마음을 온전히 하여 하나님을 따랐습니다.", "difficulty": "하", "verse": "수 14:8"}, {"id": 110, "section": "여호수아", "question": "도피성에 피한 자는 언제까지 거기 있나?", "choices": ["1년", "죽을 때까지", "대제사장 죽기까지", "7년"], "answer": 2, "explanation": "대제사장의 죽음이 속죄의 의미를 가집니다.", "difficulty": "상", "verse": "수 20:6"}, {"id": 111, "section": "여호수아", "question": "여호수아의 기업 딤낫 세라는 어느 산지에 있나?", "choices": ["유다 산지", "에브라임 산지", "갈릴리", "광야"], "answer": 1, "explanation": "여호수아 자신의 지파 땅입니다.", "difficulty": "중", "verse": "수 19:50"}, {"id": 112, "section": "여호수아", "question": "\"스스로 조심하여\" 누구를 사랑하라 했나?", "choices": ["이웃", "하나님 여호와", "가족", "원수"], "answer": 1, "explanation": "마음을 다해 하나님을 사랑하는 것이 형통입니다.", "difficulty": "하", "verse": "수 23:11"}, {"id": 113, "section": "여호수아", "question": "아브라함의 아버지 이름은 무엇인가?", "choices": ["나홀", "하란", "데라", "룻"], "answer": 2, "explanation": "갈대아 우르에서 온 조상입니다.", "difficulty": "중", "verse": "수 24:2"}, {"id": 114, "section": "여호수아", "question": "세겜에서 백성들이 무엇을 증거로 삼았나?", "choices": ["큰 돌", "나무", "샘물", "금덩이"], "answer": 0, "explanation": "하나님과의 언약을 잊지 않기 위함입니다.", "difficulty": "중", "verse": "수 24:26"}, {"id": 115, "section": "여호수아", "question": "모세가 준 기업은 요단 어디인가?", "choices": ["동쪽", "서쪽", "남쪽", "북쪽"], "answer": 0, "explanation": "루벤, 갓, 므낫세 반 지파가 받았습니다.", "difficulty": "하", "verse": "수 13:8"}, {"id": 116, "section": "여호수아", "question": "갈렙의 딸 이름은 무엇인가?", "choices": ["드보라", "악사", "야엘", "미갈"], "answer": 1, "explanation": "웃니엘과 결혼한 여인입니다.", "difficulty": "중", "verse": "수 15:16"}, {"id": 117, "section": "여호수아", "question": "요셉 자손이 땅이 좁다고 하자 여호수아는?", "choices": ["더 준다", "스스로 개척하라", "기다려라", "싸워라"], "answer": 1, "explanation": "개척 정신과 믿음을 요구했습니다.", "difficulty": "중", "verse": "수 17:15"}, {"id": 118, "section": "여호수아", "question": "실로에 세운 것은 무엇인가?", "choices": ["왕궁", "회막", "도서관", "성벽"], "answer": 1, "explanation": "광야 성막을 가나안 중심에 세웠습니다.", "difficulty": "중", "verse": "수 18:1"}, {"id": 119, "section": "여호수아", "question": "레위 지파에게는 기업(땅)이 없었던 이유는?", "choices": ["가난해서", "여호와가 기업이므로", "벌 받아서", "늦게 와서"], "answer": 1, "explanation": "하나님이 직접 그들의 상급이 되십니다.", "difficulty": "중", "verse": "수 13:33"}, {"id": 120, "section": "여호수아", "question": "여호수아가 죽기 전 백성들에게 선택하라 한 것은?", "choices": ["돈과 명예", "섬길 자", "전쟁과 평화", "이사 갈 곳"], "answer": 1, "explanation": "여호와냐 이방 신이냐를 정하라 했습니다.", "difficulty": "하", "verse": "수 24:15"}, {"id": 121, "section": "여호수아", "question": "여호수아 1:9 \"내가 네게 명령한 것이 아니냐 ( )\"", "choices": ["울지 마라", "잠자라", "강하고 담대하라", "도망가라"], "answer": 2, "explanation": "여호수아에게 주신 가장 큰 권고입니다.", "difficulty": "하", "verse": "수 1:9"}, {"id": 122, "section": "여호수아", "question": "라합의 집에 정탐꾼이 왔을 때 라합은 누구라 했나?", "choices": ["간첩", "모르는 사람(나갔다 함)", "친구", "가족"], "answer": 1, "explanation": "거짓으로 정탐꾼을 보호했습니다.", "difficulty": "중", "verse": "수 2:4"}, {"id": 123, "section": "여호수아", "question": "언약궤와 백성 사이 거리는 얼마인가?", "choices": ["500규빗", "1000규빗", "2000규빗", "3000규빗"], "answer": 2, "explanation": "하나님의 거룩함을 지키는 거리입니다.", "difficulty": "상", "verse": "수 3:4"}, {"id": 124, "section": "여호수아", "question": "할례를 행한 산의 이름은 무엇인가?", "choices": ["할례 산", "시내 산", "에발 산", "그리심 산"], "answer": 0, "explanation": "기브앗 하아랄롯이라고도 합니다.", "difficulty": "상", "verse": "수 5:3"}, {"id": 125, "section": "여호수아", "question": "여리고를 정복할 때 제사장들은 무엇을 불었나?", "choices": ["피리", "양각 나팔", "거문고", "드럼"], "answer": 1, "explanation": "일곱 나팔을 잡고 앞서 나갔습니다.", "difficulty": "중", "verse": "수 6:4"}, {"id": 126, "section": "여호수아", "question": "여리고 성 안의 모든 생명은 어떻게 했나?", "choices": ["노예 삼음", "진멸함", "풀어줌", "방치함"], "answer": 1, "explanation": "우상 숭배의 죄를 멸하기 위함입니다.", "difficulty": "중", "verse": "수 6:21"}, {"id": 127, "section": "여호수아", "question": "아간이 훔친 은의 무게는 얼마인가?", "choices": ["50세겔", "100세겔", "200세겔", "500세겔"], "answer": 2, "explanation": "은 이백 세겔과 금 오십 세겔입니다.", "difficulty": "상", "verse": "수 7:21"}, {"id": 128, "section": "여호수아", "question": "아이 성 전투에서 죽은 이스라엘 사람은?", "choices": ["36명", "100명", "500명", "1000명"], "answer": 0, "explanation": "죄로 인해 당한 뼈아픈 패배입니다.", "difficulty": "상", "verse": "수 7:5"}, {"id": 129, "section": "여호수아", "question": "기브온 주민들은 이스라엘에게 어떤 존재가 됐나?", "choices": ["원수", "나무 패며 물 긷는 자", "지도자", "제사장"], "answer": 1, "explanation": "속임수의 대가로 종이 되었습니다.", "difficulty": "중", "verse": "수 9:21"}, {"id": 130, "section": "여호수아", "question": "정복 전쟁 후 땅에 무엇이 그쳤는가?", "choices": ["비", "전쟁", "노래", "양식"], "answer": 1, "explanation": "마침내 안식이 찾아왔음을 뜻합니다.", "difficulty": "하", "verse": "수 11:23"}, {"id": 131, "section": "여호수아", "question": "갈렙이 85세에도 강건했던 이유는?", "choices": ["운동", "하나님이 생존케 하심", "보약", "유전"], "answer": 1, "explanation": "하나님의 약속을 믿는 자의 강건함입니다.", "difficulty": "중", "verse": "수 14:10"}, {"id": 132, "section": "여호수아", "question": "유다 지파가 쫓아내지 못한 주민은?", "choices": ["여부스 족속", "헷 족속", "아모리", "블레셋"], "answer": 0, "explanation": "예루살렘의 여부스 족속입니다.", "difficulty": "중", "verse": "수 15:63"}, {"id": 133, "section": "여호수아", "question": "도피성의 목적은 무엇을 피하기 위함인가?", "choices": ["세금", "피의 보복자", "빚쟁이", "짐승"], "answer": 1, "explanation": "실수한 자의 생명을 지키는 제도입니다.", "difficulty": "하", "verse": "수 20:3"}, {"id": 134, "section": "여호수아", "question": "여호수아가 마지막에 세운 증거는 무엇인가?", "choices": ["금송아지", "큰 돌", "깃발", "성전"], "answer": 1, "explanation": "하나님의 말씀을 들은 증거물입니다.", "difficulty": "중", "verse": "수 24:26"}, {"id": 135, "section": "사사기", "question": "여호수아 사후 누가 먼저 싸우러 나갔나요?", "choices": ["단 지파", "유다 지파", "루벤 지파", "갓 지파"], "answer": 1, "explanation": "하나님이 유다 지파를 선봉으로 세우셨습니다.", "difficulty": "하", "verse": "삿 1:2"}, {"id": 136, "section": "사사기", "question": "엄지발가락이 잘린 아도니 베섹은 누구인가?", "choices": ["사사", "예루살렘 왕", "제사장", "정탐꾼"], "answer": 1, "explanation": "자신이 행한 대로 보응을 받았다고 했습니다.", "difficulty": "상", "verse": "삿 1:6"}, {"id": 137, "section": "사사기", "question": "배교할 때마다 하나님이 일으키신 지도자는?", "choices": ["선지자", "제사장", "사사", "왕"], "answer": 2, "explanation": "위기 때마다 이스라엘을 구원한 자들입니다.", "difficulty": "하", "verse": "삿 2:16"}, {"id": 138, "section": "사사기", "question": "이스라엘의 제1호 사사는 누구입니까?", "choices": ["에훗", "삼갈", "옷니엘", "기드온"], "answer": 2, "explanation": "갈렙의 사위이자 아우인 옷니엘입니다.", "difficulty": "하", "verse": "삿 3:9"}, {"id": 139, "section": "사사기", "question": "모압 왕 에글론을 죽인 왼손잡이 사사는?", "choices": ["에훗", "야일", "돌라", "입다"], "answer": 0, "explanation": "오른쪽 허벅지에 칼을 숨겨 왕을 죽였습니다.", "difficulty": "중", "verse": "삿 3:15"}, {"id": 140, "section": "사사기", "question": "소 모는 막대기로 600명을 죽인 사사는?", "choices": ["삼손", "삼갈", "엘론", "압돈"], "answer": 1, "explanation": "도구에 상관없이 하나님의 능력을 보였습니다.", "difficulty": "중", "verse": "삿 3:31"}, {"id": 141, "section": "사사기", "question": "유일한 여자 사사의 이름은 무엇입니까?", "choices": ["드보라", "야엘", "라합", "룻"], "answer": 0, "explanation": "랍비돗의 아내로 재판관이었습니다.", "difficulty": "하", "verse": "삿 4:4"}, {"id": 142, "section": "사사기", "question": "대적 시스라를 장막 말뚝으로 죽인 여인은?", "choices": ["드보라", "야엘", "들릴라", "미갈"], "answer": 1, "explanation": "하나님이 여인의 손에 대적을 넘기셨습니다.", "difficulty": "중", "verse": "삿 4:21"}, {"id": 143, "section": "사사기", "question": "기드온이 미디안을 피해 밀을 타작하던 곳은?", "choices": ["타작 마당", "포도주 틀", "산", "지붕"], "answer": 1, "explanation": "적군의 눈을 피해 숨어 일하던 모습입니다.", "difficulty": "하", "verse": "삿 6:11"}, {"id": 144, "section": "사사기", "question": "바알과 다투다'라는 뜻의 기드온 별명은?", "choices": ["여룹바알", "나실인", "여호와 닛시", "사사"], "answer": 0, "explanation": "바알의 제단을 헐었기에 붙은 이름입니다.", "difficulty": "중", "verse": "삿 6:32"}, {"id": 145, "section": "사사기", "question": "기드온 군대 32,000명 중 두려워 돌아간 자는?", "choices": ["300명", "10,000명", "22,000명", "32,000명"], "answer": 2, "explanation": "믿음 없는 자들을 걸러내셨습니다.", "difficulty": "중", "verse": "삿 7:3"}, {"id": 146, "section": "사사기", "question": "기드온의 최종 300명은 물을 어떻게 마셨나요?", "choices": ["무릎 꿇고", "누워서", "손으로 핥아", "바가지로"], "answer": 2, "explanation": "경계 태세를 갖춘 자들을 택하셨습니다.", "difficulty": "중", "verse": "삿 7:6"}, {"id": 147, "section": "사사기", "question": "기드온의 300 용사가 든 무기가 아닌 것은?", "choices": ["나팔", "항아리", "횃불", "긴 칼"], "answer": 3, "explanation": "칼이 아닌 하나님의 방법으로 이겼습니다.", "difficulty": "하", "verse": "삿 7:16"}, {"id": 148, "section": "사사기", "question": "기드온의 아들 70명을 죽이고 왕이 된 자는?", "choices": ["아비멜렉", "요담", "세바", "가알"], "answer": 0, "explanation": "기드온의 첩의 아들이자 악한 왕입니다.", "difficulty": "하", "verse": "삿 9:5"}, {"id": 149, "section": "사사기", "question": "아비멜렉은 여인이 던진 무엇에 맞아 죽었나요?", "choices": ["창", "맷돌 윗짝", "물매 돌", "화살"], "answer": 1, "explanation": "비참한 최후를 맞이한 악한 지도자입니다.", "difficulty": "상", "verse": "삿 9:53"}, {"id": 150, "section": "사사기", "question": "암몬을 물리치고 딸을 바친 서원을 한 사사는?", "choices": ["입다", "입산", "엘론", "압돈"], "answer": 0, "explanation": "쫓겨났으나 장로들의 부름을 받았습니다.", "difficulty": "중", "verse": "삿 11:1"}, {"id": 151, "section": "사사기", "question": "입다를 마중 나온 자는 누구였나?", "choices": ["아내", "외딸", "종", "친구"], "answer": 1, "explanation": "서원 때문에 바쳐지게 된 비극적 주인공입니다.", "difficulty": "하", "verse": "삿 11:34"}, {"id": 152, "section": "사사기", "question": "에브라임 사람들을 가려낸 발음 테스트는?", "choices": ["샬롬", "쉽볼렛", "할렐루야", "아멘"], "answer": 1, "explanation": "십볼렛'이라 발음한 자들을 죽였습니다.", "difficulty": "중", "verse": "삿 12:6"}, {"id": 153, "section": "사사기", "question": "삼손은 태어날 때부터 구별된 ( )이었습니까?", "choices": ["제사장", "선지자", "나실인", "왕"], "answer": 2, "explanation": "머리에 삭도를 대지 말아야 했습니다.", "difficulty": "하", "verse": "삿 13:5"}, {"id": 154, "section": "사사기", "question": "삼손이 사자의 시체에서 발견한 것은 무엇인가요?", "choices": ["금", "칼", "꿀", "가죽"], "answer": 2, "explanation": "나실인 법을 어기는 계기가 됩니다.", "difficulty": "중", "verse": "삿 14:8"}, {"id": 155, "section": "사사기", "question": "삼손이 나귀 턱뼈로 죽인 사람의 수는?", "choices": ["100명", "300명", "1,000명", "3,000명"], "answer": 2, "explanation": "하나님의 신이 임한 초자연적 힘입니다.", "difficulty": "하", "verse": "삿 15:15"}, {"id": 156, "section": "사사기", "question": "삼손의 힘의 비밀을 알아내 유혹한 여인은?", "choices": ["야엘", "라합", "들릴라", "미갈"], "answer": 2, "explanation": "소렉 골짜기의 블레셋 여인입니다.", "difficulty": "하", "verse": "삿 16:4"}, {"id": 157, "section": "사사기", "question": "삼손이 마지막에 무너뜨린 블레셋 신전 이름은?", "choices": ["다곤 신전", "바알 신전", "아세라", "태양"], "answer": 0, "explanation": "블레셋의 신 다곤의 신전입니다.", "difficulty": "중", "verse": "삿 16:23"}, {"id": 158, "section": "사사기", "question": "미가라는 사람이 자기 집에 세운 것은 무엇인가요?", "choices": ["학교", "병원", "신상", "도서관"], "answer": 2, "explanation": "개인 가정의 종교적 타락을 보여줍니다.", "difficulty": "상", "verse": "삿 17:4"}, {"id": 159, "section": "사사기", "question": "사사기의 결론적 문구: \"사람이 각기 ( ) 대로\"", "choices": ["하나님의 법", "자기 소견에 옳은", "법전", "왕의 명령"], "answer": 1, "explanation": "영적 무질서와 배교를 뜻합니다.", "difficulty": "하", "verse": "삿 21:25"}, {"id": 160, "section": "사사기", "question": "옷니엘은 누구의 사위가 되었나?", "choices": ["갈렙", "여호수아", "아론", "모세"], "answer": 0, "explanation": "갈렙의 딸 악사와 결혼했습니다.", "difficulty": "하", "verse": "삿 1:13"}, {"id": 161, "section": "사사기", "question": "보림의 뜻은 무엇인가?", "choices": ["기쁨", "우는 자들", "전사", "평화"], "answer": 1, "explanation": "하나님의 책망에 백성들이 울었습니다.", "difficulty": "중", "verse": "삿 2:5"}, {"id": 162, "section": "사사기", "question": "이스라엘이 배교하여 섬긴 신은?", "choices": ["바알과 아스다롯", "제우스", "태양신", "돈"], "answer": 0, "explanation": "가나안의 우상들입니다.", "difficulty": "하", "verse": "삿 2:13"}, {"id": 163, "section": "사사기", "question": "에훗은 어느 손을 쓰는 사람이었나?", "choices": ["오른손", "왼손", "양손", "못 씀"], "answer": 1, "explanation": "왼손잡이 사사였습니다.", "difficulty": "중", "verse": "삿 3:15"}, {"id": 164, "section": "사사기", "question": "드보라가 재판을 하던 나무는?", "choices": ["상수리나무", "종려나무", "가시나무", "뽕나무"], "answer": 1, "explanation": "드보라의 종려나무 아래서 했습니다.", "difficulty": "상", "verse": "삿 4:5"}, {"id": 165, "section": "사사기", "question": "기드온의 집안은 어떠했나?", "choices": ["가장 큼", "므낫세 중 극히 약함", "왕족", "제사장"], "answer": 1, "explanation": "미천한 자를 부르시는 은혜입니다.", "difficulty": "중", "verse": "삿 6:15"}, {"id": 166, "section": "사사기", "question": "하나님이 기드온에게 준 징조는 무엇인가?", "choices": ["양털", "구름", "불", "지팡이"], "answer": 0, "explanation": "양털 뭉치에 이슬이 맺히게 하셨습니다.", "difficulty": "하", "verse": "삿 6:37"}, {"id": 167, "section": "사사기", "question": "기드온 군대 중 물을 핥은 자는 몇 명인가?", "choices": ["100명", "300명", "1000명", "10000명"], "answer": 1, "explanation": "하나님이 택하신 소수의 정예 용사입니다.", "difficulty": "하", "verse": "삿 7:7"}, {"id": 168, "section": "사사기", "question": "기드온이 금으로 만든 '에봇'은 어떻게 됐나?", "choices": ["보물이 됨", "온 이스라엘의 올무", "성전 기물", "사라짐"], "answer": 1, "explanation": "훗날 우상처럼 숭배되어 타락의 원인이 됐습니다.", "difficulty": "상", "verse": "삿 8:27"}, {"id": 169, "section": "사사기", "question": "아비멜렉 뒤를 이어 구원한 사사는?", "choices": ["돌라", "야일", "입산", "엘론"], "answer": 0, "explanation": "잇사갈 사람 푸아의 아들입니다.", "difficulty": "상", "verse": "삿 10:1"}, {"id": 170, "section": "사사기", "question": "사사 야일에게는 아들 몇 명이 있었나?", "choices": ["10명", "20명", "30명", "70명"], "answer": 2, "explanation": "아들 30명이 어린 나귀 30을 탔습니다.", "difficulty": "상", "verse": "삿 10:4"}, {"id": 171, "section": "사사기", "question": "입다가 돕 땅에 있을 때 그에게 모여든 자는?", "choices": ["용사", "잡류", "부자", "장로"], "answer": 1, "explanation": "소외된 자들과 함께 지냈습니다.", "difficulty": "중", "verse": "삿 11:3"}, {"id": 172, "section": "사사기", "question": "입다의 서원이 잘못된 이유는?", "choices": ["돈 때문", "인신 제사 성격", "너무 길어서", "잊어서"], "answer": 1, "explanation": "하나님의 성품을 오해한 경솔한 맹세입니다.", "difficulty": "상", "verse": "삿 11:31"}, {"id": 173, "section": "사사기", "question": "삼손의 아버지 마노아는 어느 지파인가?", "choices": ["유다", "베냐민", "단 지파", "루벤"], "answer": 2, "explanation": "단 지파의 가족이었습니다.", "difficulty": "중", "verse": "삿 13:2"}, {"id": 174, "section": "사사기", "question": "삼손이 사자를 죽일 때 도구는 무엇인가?", "choices": ["칼", "창", "맨손", "돌"], "answer": 2, "explanation": "염소 새끼 찢듯 맨손으로 찢었습니다.", "difficulty": "하", "verse": "삿 14:6"}, {"id": 175, "section": "사사기", "question": "삼손이 블레셋 사람들에게 낸 수수께끼 답은?", "choices": ["꿀과 사자", "빛과 어둠", "물과 불", "해와 달"], "answer": 0, "explanation": "먹는 자에게서 먹는 것이 나옴을 냈습니다.", "difficulty": "상", "verse": "삿 14:14"}, {"id": 176, "section": "사사기", "question": "삼손이 여우 300마리로 한 일은?", "choices": ["서커스", "블레셋 곡식 밭 태움", "잔치", "이사"], "answer": 1, "explanation": "꼬리에 홰를 달아 밭을 불태웠습니다.", "difficulty": "중", "verse": "삿 15:4"}, {"id": 177, "section": "사사기", "question": "삼손이 목말라 부르짖어 터진 샘 이름은?", "choices": ["엔학고레", "브엘세바", "마라", "엘림"], "answer": 0, "explanation": "부르짖는 자의 샘'이라는 뜻입니다.", "difficulty": "중", "verse": "삿 15:19"}, {"id": 178, "section": "사사기", "question": "들릴라에게 힘의 비밀을 몇 번 거짓말했나?", "choices": ["1번", "2번", "3번", "7번"], "answer": 2, "explanation": "세 번 속이고 네 번째에 진실을 말했습니다.", "difficulty": "상", "verse": "삿 16:15"}, {"id": 179, "section": "사사기", "question": "삼손이 머리가 밀린 후 당한 고통은?", "choices": ["눈이 뽑힘", "팔이 잘림", "혀가 잘림", "감옥행"], "answer": 0, "explanation": "두 눈을 뽑고 맷돌을 돌리게 했습니다.", "difficulty": "중", "verse": "삿 16:21"}, {"id": 180, "section": "사사기", "question": "미가의 제사장이 된 레위 청년은 누구인가?", "choices": ["사무엘", "요나단", "엘리", "나단"], "answer": 1, "explanation": "모세의 손자 요나단이었습니다.", "difficulty": "상", "verse": "삿 18:30"}, {"id": 181, "section": "사사기", "question": "단 지파가 정복한 평온한 성읍 이름은?", "choices": ["라이스", "예루살렘", "베들레헴", "헤브론"], "answer": 0, "explanation": "본래 기업을 버리고 뺏은 성읍입니다.", "difficulty": "상", "verse": "삿 18:27"}, {"id": 182, "section": "사사기", "question": "레위 사람의 첩이 죽은 성읍은 어디인가?", "choices": ["기브아", "벧엘", "실로", "단"], "answer": 0, "explanation": "베냐민 지파에 속한 기브아입니다.", "difficulty": "중", "verse": "삿 19:15"}, {"id": 183, "section": "사사기", "question": "이스라엘 연합군이 베냐민과 싸우러 모인 곳은?", "choices": ["미스바", "길갈", "가나", "세겜"], "answer": 0, "explanation": "단에서 브엘세바까지 온 백성이 모였습니다.", "difficulty": "중", "verse": "삿 20:1"}, {"id": 184, "section": "사사기", "question": "베냐민 지파 중 남은 군사의 수는?", "choices": ["600명", "1000명", "5000명", "10000명"], "answer": 0, "explanation": "림몬 바위에 숨어 생존했습니다.", "difficulty": "상", "verse": "삿 20:47"}, {"id": 185, "section": "사사기", "question": "베냐민 지파에게 아내를 주기 위해 간 곳은?", "choices": ["야베스 길앗", "애굽", "가나안", "시리아"], "answer": 0, "explanation": "내전에 참여하지 않은 성읍입니다.", "difficulty": "상", "verse": "삿 21:8"}, {"id": 186, "section": "사사기", "question": "옷니엘은 어느 지파 사람인가?", "choices": ["유다", "루벤", "단", "갓"], "answer": 0, "explanation": "유다 지파의 용사였습니다.", "difficulty": "하", "verse": "삿 1:13"}, {"id": 187, "section": "사사기", "question": "보림에서 사자가 책망한 내용은?", "choices": ["도둑질", "가나안 주민과 언약", "살인", "간음"], "answer": 1, "explanation": "하나님의 명령을 어기고 언약을 맺었습니다.", "difficulty": "중", "verse": "삿 2:2"}, {"id": 188, "section": "사사기", "question": "사사 에훗의 칼 길이는 얼마인가?", "choices": ["한 규빗", "두 규빗", "한 뼘", "삼 규빗"], "answer": 0, "explanation": "좌우에 날선 한 규빗 길이의 칼입니다.", "difficulty": "상", "verse": "삿 3:16"}, {"id": 189, "section": "사사기", "question": "드보라가 바락에게 가라고 한 산은?", "choices": ["시내 산", "다볼 산", "갈멜 산", "에발 산"], "answer": 1, "explanation": "만 명을 거느리고 다볼 산으로 갔습니다.", "difficulty": "중", "verse": "삿 4:6"}, {"id": 190, "section": "사사기", "question": "기드온이 바알 제단을 헌 시각은?", "choices": ["아침", "정오", "밤", "저녁"], "answer": 2, "explanation": "사람들을 두려워하여 밤에 행했습니다.", "difficulty": "중", "verse": "삿 6:27"}, {"id": 191, "section": "사사기", "question": "기드온의 300 용사가 항아리를 깬 이유는?", "choices": ["실수", "횃불을 보이기 위해", "소리 내려고", "무거워서"], "answer": 1, "explanation": "감추었던 불빛을 동시에 밝히기 위함입니다.", "difficulty": "중", "verse": "삿 7:20"}, {"id": 192, "section": "사사기", "question": "기드온이 왕 요청을 거절하며 한 말은?", "choices": ["왕은 나쁘다", "여호와가 다스린다", "난 바쁘다", "돈이 없다"], "answer": 1, "explanation": "신본주의적인 통치를 강조했습니다.", "difficulty": "하", "verse": "삿 8:23"}, {"id": 193, "section": "사사기", "question": "스스로 왕이 된 아비멜렉의 어머니는?", "choices": ["세겜의 첩", "정식 아내", "공주", "여종"], "answer": 0, "explanation": "출신 때문에 갈등이 발생했습니다.", "difficulty": "상", "verse": "삿 9:1"}, {"id": 194, "section": "사사기", "question": "사사 입다가 쫓겨났던 땅의 이름은?", "choices": ["돕 땅", "가사", "욥바", "수르"], "answer": 0, "explanation": "돕 땅에 거류하며 잡류와 어울렸습니다.", "difficulty": "상", "verse": "삿 11:3"}, {"id": 195, "section": "사사기", "question": "입다의 딸이 산에서 통곡한 이유는?", "choices": ["죽음", "처녀로 죽음", "배고픔", "친구 때문"], "answer": 1, "explanation": "시집가지 못하고 죽는 것을 슬퍼했습니다.", "difficulty": "중", "verse": "삿 11:37"}, {"id": 196, "section": "사사기", "question": "삼손이 태어나기 전 아내에게 나타난 자는?", "choices": ["왕", "여호와의 사자", "제사장", "정탐꾼"], "answer": 1, "explanation": "삼손의 출생을 예고했습니다.", "difficulty": "하", "verse": "삿 13:3"}, {"id": 197, "section": "사사기", "question": "삼손이 블레셋 사람들에게 준 베 옷은 몇 벌?", "choices": ["10벌", "20벌", "30벌", "100벌"], "answer": 2, "explanation": "수수께끼 내기의 판돈이었습니다.", "difficulty": "상", "verse": "삿 14:12"}, {"id": 198, "section": "사사기", "question": "삼손이 가사에서 성문짝을 메고 간 곳은?", "choices": ["헤브론 앞 산", "요단 강", "바다", "집"], "answer": 0, "explanation": "괴력을 보여주는 사건입니다.", "difficulty": "중", "verse": "삿 16:3"}, {"id": 199, "section": "사사기", "question": "삼손이 죽을 때 다곤 신전 지붕에 있던 자는?", "choices": ["1000명", "2000명", "3000명", "5000명"], "answer": 2, "explanation": "삼손의 죽음으로 많은 대적이 죽었습니다.", "difficulty": "상", "verse": "삿 16:27"}, {"id": 200, "section": "사사기", "question": "사사기 전체에서 왕이 없음을 몇 번 강조하나?", "choices": ["1번", "2번", "4번", "10번"], "answer": 2, "explanation": "17:6, 18:1, 19:1, 21:25에서 반복됩니다.", "difficulty": "상", "verse": "삿 21:25"}, {"id": 201, "section": "넌센스", "question": "성경 인물 중 가장 장사를 잘하는 사람은?", "choices": ["야곱", "모세", "삼손", "다윗"], "answer": 0, "explanation": "팥죽 한 그릇으로 장자권을 샀으니까요.", "difficulty": "하", "verse": ""}, {"id": 202, "section": "넌센스", "question": "성경 인물 중 가장 싸움을 잘하는 사람은?", "choices": ["기드온", "여호수아", "베드로", "요한"], "answer": 1, "explanation": "여호'하고 '수아(쏴)'하니까요.", "difficulty": "하", "verse": ""}, {"id": 203, "section": "넌센스", "question": "삼손이 죽기 전에 마지막으로 한 말은?", "choices": ["사랑해", "아 머리 아파", "안녕", "와르르"], "answer": 1, "explanation": "신전 기둥이 머리 위로 떨어졌을 테니까요.", "difficulty": "중", "verse": ""}, {"id": 204, "section": "넌센스", "question": "성경 인물 중 가장 잠을 안 자는 사람은?", "choices": ["눈의 아들 여호수아", "다윗", "바울", "베드로"], "answer": 0, "explanation": "항상 '눈'을 뜨고 있어서요.", "difficulty": "중", "verse": ""}, {"id": 205, "section": "넌센스", "question": "여리고 성이 무너질 때 다친 사람이 없었던 이유는?", "choices": ["스펀지 성", "소리만 질렀으니까", "다 도망감", "누워 있음"], "answer": 1, "explanation": "\"와~\" 하는 소리에 무너졌지요.", "difficulty": "하", "verse": ""}, {"id": 206, "section": "넌센스", "question": "하나님이 가장 싫어하는 비는?", "choices": ["장마비", "소나기", "사이비", "가랑비"], "answer": 2, "explanation": "진짜가 아닌 가짜 신앙은 안 돼요.", "difficulty": "하", "verse": ""}, {"id": 207, "section": "넌센스", "question": "성경 인물 중 발을 가장 잘 씻는 사람은?", "choices": ["소돔", "고모라", "세겜", "길갈"], "answer": 0, "explanation": "발을 '씻으돔(소돔)'", "difficulty": "중", "verse": ""}, {"id": 208, "section": "넌센스", "question": "인류 최초의 거지는?", "choices": ["나사로", "가인", "아담", "하와"], "answer": 0, "explanation": "\"나 살어(살려줘)~\"라고 해서요.", "difficulty": "하", "verse": ""}, {"id": 209, "section": "넌센스", "question": "기독교인들이 가장 좋아하는 서점은?", "choices": ["영광서점", "은혜문고", "형제서점", "믿음북스"], "answer": 2, "explanation": "\"형제여~ 서점!(서 계시지 마세요)\"", "difficulty": "중", "verse": ""}, {"id": 210, "section": "넌센스", "question": "성경 인물 중 가장 요리를 잘하는 사람은?", "choices": ["모세", "야곱", "이삭", "아론"], "answer": 0, "explanation": "홍해를 한 번에 '볶았'으니까요.", "difficulty": "상", "verse": ""}, {"id": 211, "section": "넌센스", "question": "성경에서 가장 읽기 힘든 구절은?", "choices": ["어려운 한자", "안 보이는 구절", "영어", "헬라어"], "answer": 1, "explanation": "눈이 침침하면 정말 읽기 힘들죠.", "difficulty": "하", "verse": ""}, {"id": 212, "section": "넌센스", "question": "므두셀라가 969세까지 산 비결은?", "choices": ["운동", "보약", "안 죽어서", "채식"], "answer": 2, "explanation": "죽지 않아야 오래 삽니다.", "difficulty": "하", "verse": ""}, {"id": 213, "section": "넌센스", "question": "하나님이 살고 계시는 동네 이름은?", "choices": ["천국", "예루살렘", "높은 곳", "우리 동네"], "answer": 2, "explanation": "\"지극히 높은 곳\"에 계시니까요.", "difficulty": "하", "verse": ""}, {"id": 214, "section": "넌센스", "question": "성경에서 가장 지독한 구두쇠는?", "choices": ["빌라도", "유다", "라반", "부자"], "answer": 0, "explanation": "자꾸 \"빌라(Villa)\" 달라고 하니까요.", "difficulty": "상", "verse": ""}, {"id": 215, "section": "넌센스", "question": "삼손이 제일 좋아하는 미용실 이름은?", "choices": ["삭도 미용실", "들릴라 미용실", "광야 헤어", "요단 바버샵"], "answer": 1, "explanation": "머리카락을 확실히 밀어주니까요.", "difficulty": "하", "verse": ""}, {"id": 216, "section": "넌센스", "question": "성경 인물 중 가장 수학을 잘하는 사람은?", "choices": ["셈", "노아", "함", "야벳"], "answer": 0, "explanation": "이름부터가 '셈'을 잘하게 생겼죠.", "difficulty": "하", "verse": ""}, {"id": 217, "section": "넌센스", "question": "성경 인물 중 낚시를 가장 좋아하는 사람은?", "choices": ["베드로", "안드레", "야고보", "요한"], "answer": 0, "explanation": "사람을 낚는 어부가 되었으니까요.", "difficulty": "하", "verse": ""}, {"id": 218, "section": "넌센스", "question": "성경에서 가장 먼저 수술을 받은 사람은?", "choices": ["아담", "하와", "가인", "노아"], "answer": 0, "explanation": "갈비뼈를 뽑는 대수술을 받았죠.", "difficulty": "중", "verse": ""}, {"id": 219, "section": "넌센스", "question": "성경 인물 중 가장 눈이 좋은 사람은?", "choices": ["보아스", "다윗", "삼손", "엘리"], "answer": 0, "explanation": "\"다 보아스~!\"", "difficulty": "중", "verse": ""}, {"id": 220, "section": "넌센스", "question": "가인과 아벨 중 누가 형일까?", "choices": ["가인", "아벨", "쌍둥이", "모름"], "answer": 0, "explanation": "가'가 먼저 나오니까요.", "difficulty": "하", "verse": ""}, {"id": 221, "section": "넌센스", "question": "이스라엘 백성이 요단강 건널 때 젖지 않은 이유는?", "choices": ["장화", "마른 땅으로 건너서", "날아가서", "배 타고"], "answer": 1, "explanation": "성경에 마른 땅으로 건넜다고 나옵니다.", "difficulty": "하", "verse": ""}, {"id": 222, "section": "넌센스", "question": "세상에서 가장 용감한 사람은?", "choices": ["다윗", "삼손", "여호수아", "기드온"], "answer": 0, "explanation": "골리앗에게 '다윗(다 이겼)'이니까요.", "difficulty": "중", "verse": ""}, {"id": 223, "section": "넌센스", "question": "성경 인물 중 가장 기분이 좋은 사람은?", "choices": ["빌립보", "데살로니가", "에베소", "로마"], "answer": 0, "explanation": "빌립이 '뽀'해주니까요.", "difficulty": "상", "verse": ""}, {"id": 224, "section": "넌센스", "question": "하나님이 가장 좋아하는 숫자는?", "choices": ["1", "3", "7", "12"], "answer": 2, "explanation": "완전수니까요.", "difficulty": "하", "verse": ""}, {"id": 225, "section": "넌센스", "question": "삼손이 사자를 죽인 후 했던 말은?", "choices": ["무섭다", "사자(Buy) 말라니까!", "미안해", "안녕"], "answer": 1, "explanation": "동음이의어 농담입니다.", "difficulty": "중", "verse": ""}, {"id": 226, "section": "넌센스", "question": "모세가 홍해 앞에서 지팡이를 던지며 한 말은?", "choices": ["갈라져라", "풍덩!", "도와주세요", "이리 와"], "answer": 1, "explanation": "물에 던졌으니 풍덩 소리가 났겠죠.", "difficulty": "하", "verse": ""}, {"id": 227, "section": "넌센스", "question": "사사들이 가장 싫어하는 과일은?", "choices": ["포도", "무화과", "사과", "배"], "answer": 2, "explanation": "사사'과니까요.", "difficulty": "하", "verse": ""}, {"id": 228, "section": "넌센스", "question": "성경에서 가장 뜨거운 곳은?", "choices": ["사막", "풀무불", "태양", "지옥"], "answer": 1, "explanation": "일곱 배나 뜨거웠던 불입니다.", "difficulty": "중", "verse": ""}, {"id": 229, "section": "넌센스", "question": "아브라함이 키우던 강아지 이름은?", "choices": ["믿음", "소망", "사랑", "복동이"], "answer": 0, "explanation": "믿음의 조상이니까요.", "difficulty": "중", "verse": ""}, {"id": 230, "section": "넌센스", "question": "성경 인물 중 가방을 가장 좋아하는 사람은?", "choices": ["도마", "마태", "마가", "누가"], "answer": 0, "explanation": "명품 '도마' 가방.", "difficulty": "상", "verse": ""}, {"id": 231, "section": "넌센스", "question": "신명기 28장의 복을 한 마디로 줄이면?", "choices": ["대박", "다 잘 돼", "화이팅", "대단해"], "answer": 1, "explanation": "모든 영역의 복을 의미합니다.", "difficulty": "하", "verse": ""}, {"id": 232, "section": "넌센스", "question": "여호수아가 전쟁터에서 늘 들고 다닌 악기는?", "choices": ["하프", "수금", "나팔", "드럼"], "answer": 2, "explanation": "여리고 정복의 상징입니다.", "difficulty": "하", "verse": ""}, {"id": 233, "section": "넌센스", "question": "성경 인물 중 가장 기도가 안 들리는 사람은?", "choices": ["바다", "산", "강", "하늘"], "answer": 0, "explanation": "늘 '파도'가 쳐서 시끄러우니까요.", "difficulty": "상", "verse": ""}, {"id": 234, "section": "넌센스", "question": "성경에서 가장 먼저 태어난 사람은?", "choices": ["아담", "하와", "가인", "아벨"], "answer": 0, "explanation": "인류의 시조입니다.", "difficulty": "하", "verse": ""}, {"id": 235, "section": "넌센스", "question": "삼손을 유혹한 들릴라가 가장 좋아하는 도구는?", "choices": ["칼", "망치", "드릴(들릴라)", "가위"], "answer": 2, "explanation": "이름 발음 농담입니다.", "difficulty": "중", "verse": ""}, {"id": 236, "section": "넌센스", "question": "성경 인물 중 다이어트를 가장 잘한 사람은?", "choices": ["모세", "다윗", "삼손", "세례 요한"], "answer": 0, "explanation": "십계명 두 '판'을 떼어냈으니까요.", "difficulty": "상", "verse": ""}, {"id": 237, "section": "넌센스", "question": "사사기 300 용사가 타는 차는?", "choices": ["벤츠", "BMW", "기드온 트럭", "트럭"], "answer": 2, "explanation": "기드온과 300 용사니까요.", "difficulty": "상", "verse": ""}, {"id": 238, "section": "넌센스", "question": "가장 먼저 \"네\"라고 대답한 사람은?", "choices": ["아브라함", "이삭", "야곱", "요셉"], "answer": 0, "explanation": "\"아부\"하고 \"네(아브라함)\".", "difficulty": "상", "verse": ""}, {"id": 239, "section": "넌센스", "question": "여호수아가 가나안 들어갈 때 처음 한 말은?", "choices": ["야호!", "들어간다!", "드디어", "배고파"], "answer": 1, "explanation": "정말 들어갔으니까요.", "difficulty": "하", "verse": ""}, {"id": 240, "section": "넌센스", "question": "세계 최초의 소방관은?", "choices": ["노아", "다니엘의 세 친구", "모세", "여호수아"], "answer": 1, "explanation": "불속에서도 타지 않았으니까요.", "difficulty": "중", "verse": ""}, {"id": 241, "section": "넌센스", "question": "신명기 퀴즈가 끝나면 하는 말은?", "choices": ["수고하셨습니다", "신명난다!", "끝", "다음 권"], "answer": 1, "explanation": "신명기니까요.", "difficulty": "하", "verse": ""}, {"id": 242, "section": "넌센스", "question": "성경에서 가장 기도를 많이 한 사람은?", "choices": ["바다", "산", "구름", "나무"], "answer": 0, "explanation": "늘 '파도' 치며 기도하니까요.", "difficulty": "중", "verse": ""}, {"id": 243, "section": "넌센스", "question": "성경 인물 중 가장 큰 부자는?", "choices": ["솔로몬", "아브라함", "하나님", "욥"], "answer": 2, "explanation": "온 세상이 다 하나님의 것이니까요.", "difficulty": "하", "verse": ""}, {"id": 244, "section": "넌센스", "question": "사사기 에훗이 가장 잘하는 운동은?", "choices": ["달리기", "왼손 투구", "수영", "축구"], "answer": 1, "explanation": "왼손잡이 사사였으니까요.", "difficulty": "중", "verse": ""}, {"id": 245, "section": "넌센스", "question": "기드온이 300명을 뽑을 때 가장 먼저 본 것은?", "choices": ["키", "얼굴", "사람", "신발"], "answer": 2, "explanation": "사람을 뽑았으니까요.", "difficulty": "하", "verse": ""}, {"id": 246, "section": "넌센스", "question": "성경 인물 중 가장 발을 잘 씻는 지파는?", "choices": ["유다", "씻으므온(시므온)", "단", "레위"], "answer": 1, "explanation": "발을 '씻으므온'", "difficulty": "상", "verse": ""}, {"id": 247, "section": "넌센스", "question": "여호수아가 전쟁에서 지지 않은 비결은?", "choices": ["여호와와 함께 해서", "싸움을 잘해서", "군사가 많아서", "운"], "answer": 0, "explanation": "정답이자 신앙의 비결입니다.", "difficulty": "하", "verse": ""}, {"id": 248, "section": "넌센스", "question": "삼손이 가장 싫어하는 미용실 이름은?", "choices": ["삭도 미용실", "들릴라 미용실", "빡빡 미용실", "공짜"], "answer": 1, "explanation": "힘을 잃게 한 여인이니까요.", "difficulty": "중", "verse": ""}, {"id": 249, "section": "넌센스", "question": "십계명 중 \"도둑질하지 말라\"는 몇 계명?", "choices": ["5계명", "8계명", "9계명", "10계명"], "answer": 1, "explanation": "신명기 5장에 나옵니다.", "difficulty": "하", "verse": ""}, {"id": 250, "section": "넌센스", "question": "성경 퀴즈 대회가 끝나면 가장 먼저 할 일은?", "choices": ["시상식", "간식 먹기", "집에 가기", "잠자기"], "answer": 1, "explanation": "교회 행사의 꽃입니다!", "difficulty": "하", "verse": ""}];
+
+// ── FIREBASE CONFIG ──
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyAZ-QuVueyd0cPJwFIVGaYJ8nDRZac2MhE",
+  authDomain: "my-bq-34d6f.firebaseapp.com",
+  databaseURL: "https://my-bq-34d6f-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "my-bq-34d6f",
+  storageBucket: "my-bq-34d6f.firebasestorage.app",
+  messagingSenderId: "661149166607",
+  appId: "1:661149166607:web:be45bf3db9c4dbd3ec477a"
+};
+
+const LB_KEY = 'bible_quiz_lb';
+const PROG_KEY = 'bible_quiz_progress';
+let fbApp = null, fbDb = null, lbListener = null, fbMode = false;
+
+function initFirebase(cfg) {
+  try {
+    var existing = firebase.apps.filter(function(a){ return a.name === 'bible-quiz'; });
+    fbApp = existing.length > 0 ? existing[0] : firebase.initializeApp(cfg, 'bible-quiz');
+    fbDb = firebase.database(fbApp);
+    fbMode = true;
+    fbDb.ref('.info/connected').on('value', function(snap) {
+      updateConnBadge(snap.val() === true);
+    });
+    return true;
+  } catch(e) { fbMode = false; return false; }
+}
+function updateConnBadge(online) {
+  var b = document.getElementById('connBadge');
+  var t = document.getElementById('connText');
+  var ls = document.getElementById('lbConnStatus');
+  var live = document.getElementById('liveBadge');
+  if (online) {
+    if (b) { b.className = 'conn-badge online'; t.textContent = '공유 리더보드 연결됨'; }
+    if (ls) { ls.className = 'lb-conn on'; ls.textContent = '● 실시간 연결됨'; }
+    if (live) live.style.display = 'flex';
+  } else {
+    if (b) { b.className = 'conn-badge offline'; t.textContent = fbMode ? '오프라인 (재연결 중)' : '로컬 저장 모드'; }
+    if (ls) { ls.className = 'lb-conn off'; ls.textContent = '● 오프라인'; }
+    if (live) live.style.display = 'none';
+  }
+}
+
+// ── STATE ──
+let settings = { count:30, order:'random', diff:'all', explain:'yes', timer:0 };
+let selectedSections = new Set(['신명기','여호수아','사사기','넌센스']);
+let quizQuestions=[], currentIdx=0, score=0, answered=false;
+let wrongQuestions=[], comboCount=0, maxCombo=0;
+let currentUserName='', timerInterval=null, timerSec=0;
+let lbMode='all', lbFilter='all', lbAllData=[];
+
+// ── TOAST ──
+function showToast(msg, dur) {
+  dur = dur||2200; var t=document.getElementById('toast');
+  t.textContent=msg; t.classList.add('show');
+  setTimeout(function(){t.classList.remove('show');},dur);
+}
+
+// ── HOME ──
+function onNameInput() { updateStartBtn(); checkResume(); }
+function toggleSection(card) {
+  var s=card.dataset.section;
+  if(selectedSections.has(s)){selectedSections.delete(s);card.classList.remove('sel');}
+  else{selectedSections.add(s);card.classList.add('sel');}
+  updateStartBtn();
+}
+function selectAll() {
+  var all=selectedSections.size===4;
+  selectedSections=all?new Set():new Set(['신명기','여호수아','사사기','넌센스']);
+  document.querySelectorAll('.sec-card').forEach(function(c){all?c.classList.remove('sel'):c.classList.add('sel');});
+  updateStartBtn();
+}
+function updateStartBtn() {
+  var n=document.getElementById('nameInput').value.trim();
+  document.getElementById('startBtn').disabled=selectedSections.size===0||n.length===0;
+}
+function toggleSettings(btn) {
+  btn.classList.toggle('open');
+  btn.nextElementSibling.classList.toggle('open');
+}
+function setSetting(btn) {
+  var k=btn.dataset.key, v=btn.dataset.val;
+  settings[k]=(k==='count'||k==='timer')?parseInt(v):v;
+  document.querySelectorAll('[data-key="'+k+'"]').forEach(function(b){b.classList.remove('active');});
+  btn.classList.add('active');
+}
+
+// ── PROGRESS ──
+function saveProgress() {
+  localStorage.setItem(PROG_KEY,JSON.stringify({name:currentUserName,questions:quizQuestions,idx:currentIdx,score:score,wrong:wrongQuestions,combo:comboCount,maxCombo:maxCombo,settings:settings}));
+}
+function clearProgress() { localStorage.removeItem(PROG_KEY); }
+function checkResume() {
+  var raw=localStorage.getItem(PROG_KEY), btn=document.getElementById('resumeBtn');
+  if(!raw){btn.style.display='none';return;}
+  try {
+    var s=JSON.parse(raw), name=document.getElementById('nameInput').value.trim();
+    if(name&&s.name!==name){btn.style.display='none';return;}
+    btn.style.display='block';
+    document.getElementById('resumeInfo').textContent=s.idx+'/'+s.questions.length+'문제';
+  } catch(e){btn.style.display='none';}
+}
+function resumeQuiz() {
+  var raw=localStorage.getItem(PROG_KEY); if(!raw)return;
+  var s=JSON.parse(raw);
+  currentUserName=s.name; quizQuestions=s.questions; currentIdx=s.idx;
+  score=s.score; wrongQuestions=s.wrong||[]; comboCount=s.combo||0; maxCombo=s.maxCombo||0;
+  settings=s.settings||settings;
+  document.getElementById('nameInput').value=currentUserName;
+  showScreen('quiz'); renderQuestion();
+}
+
+// ── QUIZ ──
+function startQuiz() {
+  currentUserName=document.getElementById('nameInput').value.trim();
+  if(!currentUserName){showToast('이름을 입력해주세요!');return;}
+  var pool=QUIZ_DATA.filter(function(q){return selectedSections.has(q.section);});
+  if(settings.diff!=='all') pool=pool.filter(function(q){return q.difficulty===settings.diff;});
+  if(pool.length===0){showToast('해당 조건의 문제가 없습니다.');return;}
+  if(settings.order==='random') pool=pool.sort(function(){return Math.random()-0.5;});
+  var cnt=settings.count>0?settings.count:pool.length;
+  quizQuestions=pool.slice(0,cnt);
+  currentIdx=0;score=0;answered=false;wrongQuestions=[];comboCount=0;maxCombo=0;
+  clearProgress(); showScreen('quiz'); renderQuestion();
+}
+function retryQuiz(){startQuiz();}
+
+function renderQuestion() {
+  stopTimer();
+  var q=quizQuestions[currentIdx], total=quizQuestions.length;
+  document.getElementById('progText').textContent=(currentIdx+1)+' / '+total;
+  document.getElementById('progFill').style.width=((currentIdx/total)*100)+'%';
+  document.getElementById('qScore').textContent=score+'점';
+  document.getElementById('mSection').textContent=q.section;
+  var md=document.getElementById('mDiff'); md.textContent=q.difficulty||''; md.className='mbadge mb-diff-'+(q.difficulty||'하');
+  document.getElementById('mNum').textContent='#'+q.id;
+  document.getElementById('qText').textContent=q.question;
+  updateComboBadge();
+  var list=document.getElementById('choicesList'), nums=['①','②','③','④'];
+  list.innerHTML='';
+  q.choices.forEach(function(c,i){
+    var btn=document.createElement('button');
+    btn.className='choice-btn';
+    btn.innerHTML='<span class="cbadge">'+nums[i]+'</span><span class="ctext">'+c+'</span>';
+    btn.onclick=function(){selectAnswer(i,btn);};
+    list.appendChild(btn);
+  });
+  document.getElementById('explCard').classList.remove('show');
+  document.getElementById('nextBtn').classList.remove('show');
+  answered=false;
+  if(settings.timer>0){
+    timerSec=settings.timer;
+    document.getElementById('timerLabel').style.display='inline';
+    document.getElementById('timerStrip').style.display='block';
+    document.getElementById('timerNum').textContent=timerSec;
+    document.getElementById('timerFill').style.transition='none';
+    document.getElementById('timerFill').style.width='100%';
+    setTimeout(startTimer,50);
+  } else {
+    document.getElementById('timerLabel').style.display='none';
+    document.getElementById('timerStrip').style.display='none';
+  }
+  saveProgress();
+}
+function startTimer() {
+  var total=settings.timer;
+  document.getElementById('timerFill').style.transition='width '+total+'s linear';
+  document.getElementById('timerFill').style.width='0%';
+  timerInterval=setInterval(function(){
+    timerSec--; document.getElementById('timerNum').textContent=timerSec;
+    if(timerSec<=0){stopTimer();if(!answered)timeOut();}
+  },1000);
+}
+function stopTimer(){if(timerInterval){clearInterval(timerInterval);timerInterval=null;}}
+function timeOut(){
+  answered=true;
+  var q=quizQuestions[currentIdx];
+  document.querySelectorAll('.choice-btn').forEach(function(b){b.disabled=true;});
+  document.querySelectorAll('.choice-btn')[q.answer].classList.add('correct');
+  wrongQuestions.push({q:q,myAns:-1}); comboCount=0; updateComboBadge();
+  showToast('⏱ 시간 초과!'); showExpl(q); showNextBtn();
+}
+function selectAnswer(idx,btn) {
+  if(answered)return; answered=true; stopTimer();
+  var q=quizQuestions[currentIdx], btns=document.querySelectorAll('.choice-btn');
+  btns.forEach(function(b){b.disabled=true;});
+  if(idx===q.answer){
+    btn.classList.add('correct'); comboCount++; if(comboCount>maxCombo)maxCombo=comboCount;
+    var bonus=comboCount>=3?2:1; score+=bonus;
+    document.getElementById('qScore').textContent=score+'점';
+    if(comboCount>=3)showToast('🔥 '+comboCount+'연속 콤보! +'+bonus+'점');
+  } else {
+    btn.classList.add('wrong'); btn.classList.add('shake');
+    btns[q.answer].classList.add('correct');
+    wrongQuestions.push({q:q,myAns:idx}); comboCount=0;
+  }
+  updateComboBadge(); showExpl(q); showNextBtn();
+}
+function updateComboBadge(){
+  var b=document.getElementById('comboBadge');
+  if(comboCount>=3){b.textContent='🔥 '+comboCount+'콤보';b.classList.add('show');}
+  else{b.classList.remove('show');}
+}
+function showExpl(q){
+  if(settings.explain==='yes'&&q.explanation){
+    document.getElementById('explText').textContent=q.explanation;
+    document.getElementById('explVerse').textContent=q.verse?'📖 '+q.verse:'';
+    document.getElementById('explCard').classList.add('show');
+  }
+}
+function showNextBtn(){
+  var nb=document.getElementById('nextBtn'),isLast=currentIdx===quizQuestions.length-1;
+  nb.textContent=isLast?'결과 보기 🏆':'다음 문제 →'; nb.classList.add('show');
+}
+function nextQuestion(){
+  currentIdx++;
+  if(currentIdx>=quizQuestions.length){clearProgress();showResult();}
+  else{renderQuestion();window.scrollTo(0,0);}
+}
+function confirmBack(){
+  if(confirm('퀴즈를 중단할까요? 진행 상황은 저장됩니다.')){saveProgress();goHome();}
+}
+
+// ── RESULT ──
+function showResult(){
+  stopTimer();
+  var total=quizQuestions.length, correct=total-wrongQuestions.length, pct=Math.round((score/total)*100);
+  document.getElementById('stTotal').textContent=total;
+  document.getElementById('stCorrect').textContent=correct;
+  document.getElementById('stWrong').textContent=wrongQuestions.length;
+  document.getElementById('stCombo').textContent=maxCombo;
+  document.getElementById('scorePct').textContent=pct+'%';
+  var circ=2*Math.PI*65;
+  setTimeout(function(){document.getElementById('sfill').style.strokeDashoffset=circ*(1-pct/100);},300);
+  var icon,title,msg;
+  if(pct>=90){icon='🏆';title='완벽합니다!';msg='성경 말씀을 정말 잘 알고 계시네요! 하나님의 말씀이 마음에 가득하십니다.';}
+  else if(pct>=70){icon='⭐';title='훌륭해요!';msg='대부분의 말씀을 잘 알고 계세요. 조금만 더 공부하면 완벽할 것 같아요!';}
+  else if(pct>=50){icon='📖';title='잘 하셨어요!';msg='절반 이상 맞추셨어요! 말씀을 더 깊이 묵상해 보세요.';}
+  else{icon='🌱';title='도전해 보세요!';msg='성경 말씀을 더 읽고 공부해 봐요. 다시 도전하면 더 잘할 수 있어요!';}
+  document.getElementById('resultIcon').textContent=icon;
+  document.getElementById('resultTitle').textContent=title;
+  document.getElementById('resultMsg').textContent=msg;
+  if(wrongQuestions.length>0){document.getElementById('reviewBtn').style.display='block';document.getElementById('wrongCnt').textContent=wrongQuestions.length;}
+  else{document.getElementById('reviewBtn').style.display='none';}
+  var sections=[...new Set(quizQuestions.map(function(q){return q.section;}))].join(', ');
+  saveRecord({name:currentUserName,score:score,total:total,correct:correct,pct:pct,sections:sections,maxCombo:maxCombo,date:new Date().toISOString()});
+  showScreen('result');
+}
+
+// ── LEADERBOARD DATA ──
+function saveRecord(r) {
+  if(fbMode && fbDb) {
+    fbDb.ref('leaderboard').push(r).catch(function(e){ console.warn('FB write error',e); saveLocalRecord(r); });
+  } else { saveLocalRecord(r); }
+}
+function saveLocalRecord(r) {
+  var d=[]; try{d=JSON.parse(localStorage.getItem(LB_KEY)||'[]');}catch(e){}
+  d.push(r); localStorage.setItem(LB_KEY,JSON.stringify(d));
+}
+function clearLb(){
+  if(!confirm('리더보드를 초기화할까요?'))return;
+  if(fbMode&&fbDb){
+    fbDb.ref('leaderboard').remove().then(function(){showToast('초기화되었습니다.');}).catch(function(){showToast('초기화 실패.');});
+  } else { localStorage.removeItem(LB_KEY); renderLbList([]); showToast('초기화되었습니다.'); }
+}
+
+// ── LEADERBOARD SCREEN ──
+function showLeaderboard(){
+  lbMode='all';lbFilter='all';
+  document.querySelectorAll('.lb-tog').forEach(function(b){b.classList.toggle('active',b.dataset.mode==='all');});
+  document.querySelectorAll('.lf-btn').forEach(function(b){b.classList.toggle('active',b.dataset.filter==='all');});
+  showScreen('leaderboard');
+  if(fbMode&&fbDb){
+    document.getElementById('lbList').innerHTML='<div class="lb-loading">실시간 데이터 불러오는 중...</div>';
+    if(lbListener) fbDb.ref('leaderboard').off('value',lbListener);
+    lbListener=fbDb.ref('leaderboard').on('value',function(snap){
+      var raw=snap.val(), arr=[];
+      if(raw) Object.values(raw).forEach(function(v){arr.push(v);});
+      lbAllData=arr; renderLbList(arr);
+    });
+  } else {
+    var arr=[]; try{arr=JSON.parse(localStorage.getItem(LB_KEY)||'[]');}catch(e){}
+    lbAllData=arr; renderLbList(arr);
+  }
+}
+function setLbMode(btn){
+  lbMode=btn.dataset.mode;
+  document.querySelectorAll('.lb-tog').forEach(function(b){b.classList.remove('active');});
+  btn.classList.add('active'); renderLbList(lbAllData);
+}
+function setLbFilter(btn){
+  lbFilter=btn.dataset.filter;
+  document.querySelectorAll('.lf-btn').forEach(function(b){b.classList.remove('active');});
+  btn.classList.add('active'); renderLbList(lbAllData);
+}
+function renderLbList(rawData){
+  var list=document.getElementById('lbList');
+  var data=rawData.slice();
+  if(lbFilter!=='all') data=data.filter(function(r){return r.sections&&r.sections.includes(lbFilter);});
+  var today=new Date().toDateString();
+  if(lbMode==='today') data=data.filter(function(r){return new Date(r.date).toDateString()===today;});
+  if(lbMode==='best'){
+    var best={};
+    data.forEach(function(r){if(!best[r.name]||r.pct>best[r.name].pct||(r.pct===best[r.name].pct&&r.score>best[r.name].score))best[r.name]=r;});
+    data=Object.values(best);
+  }
+  data.sort(function(a,b){return b.pct-a.pct||b.score-a.score;});
+  if(data.length===0){list.innerHTML='<div class="lb-empty"><div class="lb-empty-icon">📋</div>아직 기록이 없어요!</div>';return;}
+  var medals=['🥇','🥈','🥉'];
+  var now=Date.now();
+  list.innerHTML=data.map(function(r,i){
+    var rank=i<3?'<span class="lb-rank lb-rank-'+(i+1)+'">'+medals[i]+'</span>':'<span class="lb-rank lb-rank-o">'+(i+1)+'</span>';
+    var me=(r.name===currentUserName)?'<span class="lb-me">나</span>':'';
+    var isNew=(now-new Date(r.date).getTime())<60000?'<span class="lb-new">NEW</span>':'';
+    var d=new Date(r.date);
+    var ds=(d.getMonth()+1)+'/'+d.getDate()+' '+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');
+    var comboStr=r.maxCombo?'콤보 '+r.maxCombo+' · ':'';
+    return '<div class="lb-row">'+rank+'<div class="lb-info"><div class="lb-name">'+r.name+me+isNew+'</div><div class="lb-meta">'+comboStr+r.sections+' · '+ds+'</div></div><div class="lb-score-col"><div class="lb-pct">'+r.pct+'%</div><div class="lb-frac">'+r.score+'pt · '+r.correct+'/'+r.total+'</div></div></div>';
+  }).join('');
+}
+
+// ── REVIEW ──
+function showReview(){
+  var body=document.getElementById('reviewBody'), nums=['①','②','③','④'];
+  body.innerHTML=wrongQuestions.map(function(item,i){
+    var q=item.q,myAns=item.myAns;
+    var choices=q.choices.map(function(c,ci){
+      var cls=ci===q.answer?'correct':ci===myAns?'my-wrong':'';
+      return '<div class="review-choice '+cls+'"><span>'+nums[ci]+'</span><span>'+c+'</span></div>';
+    }).join('');
+    var expl=q.explanation?'<div class="review-expl">'+q.explanation+(q.verse?'<div class="review-verse">📖 '+q.verse+'</div>':'')+'</div>':'';
+    return '<div class="review-item"><div class="review-q-num">'+(i+1)+'번 오답 · #'+q.id+' · '+q.section+'</div><div class="review-q-text">'+q.question+'</div><div class="review-choices">'+choices+'</div>'+expl+'</div>';
+  }).join('');
+  showScreen('review');
+}
+
+// ── SHARE ──
+function shareResult(){
+  var total=quizQuestions.length, correct=total-wrongQuestions.length, pct=Math.round((correct/total)*100);
+  var text='✝️ 성경 퀴즈 결과\n'+currentUserName+' · '+pct+'% ('+correct+'/'+total+'문제)\n최대 콤보: '+maxCombo+'연속\n#성경퀴즈 #BibleQuiz';
+  if(navigator.share){navigator.share({title:'성경 퀴즈 결과',text:text}).catch(function(){});}
+  else{navigator.clipboard.writeText(text).then(function(){showToast('📋 클립보드에 복사되었습니다!');}).catch(function(){showToast('복사에 실패했습니다.');});}
+}
+
+// ── UTILS ──
+function showScreen(id){
+  document.querySelectorAll('.screen').forEach(function(s){s.classList.remove('active');});
+  document.getElementById(id).classList.add('active'); window.scrollTo(0,0);
+}
+function goHome(){
+  stopTimer();
+  if(lbListener&&fbDb){fbDb.ref('leaderboard').off('value',lbListener);lbListener=null;}
+  showScreen('home'); checkResume();
+}
+
+// ── INIT ──
+(function(){
+  document.querySelectorAll('.sec-card').forEach(function(c){c.classList.add('sel');});
+  initFirebase(FIREBASE_CONFIG);
+  showScreen('home');
+  checkResume();
+})();
+</script>
+</body>
+</html>

@@ -95,12 +95,17 @@ body { font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif; background:v
 .choices { display:flex; flex-direction:column; gap:8px; }
 .choice-btn { display:flex; align-items:center; gap:11px; background:#fff; border:2px solid var(--border); border-radius:12px; padding:12px 13px; cursor:pointer; font-size:14px; color:var(--text); text-align:left; transition:all 0.2s; box-shadow:0 2px 5px rgba(0,0,0,0.04); width:100%; font-family:inherit; }
 .choice-btn:active:not([disabled]) { transform:scale(0.98); }
-.cbadge { width:28px; height:28px; border-radius:50%; background:var(--bg); color:var(--primary); font-weight:700; font-size:13px; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+.cbadge { width:32px; height:32px; border-radius:9px; font-weight:900; font-size:14px; display:flex; align-items:center; justify-content:center; flex-shrink:0; color:#fff; box-shadow:0 3px 8px rgba(0,0,0,0.18); transition:all 0.2s; }
+.cbadge.cb-1 { background:linear-gradient(135deg,#4A6FA5,#2E4F8A); }
+.cbadge.cb-2 { background:linear-gradient(135deg,#E05252,#B52B2B); }
+.cbadge.cb-3 { background:linear-gradient(135deg,#E0A130,#B87E12); }
+.cbadge.cb-4 { background:linear-gradient(135deg,#2E9E6B,#1A7A4F); }
+.choice-btn:hover:not([disabled]) .cbadge { transform:scale(1.08); }
 .ctext { flex:1; line-height:1.4; }
 .choice-btn.correct { border-color:var(--correct); background:#F0FFF4; }
-.choice-btn.correct .cbadge { background:var(--correct); color:#fff; }
+.choice-btn.correct .cbadge { background:linear-gradient(135deg,#2E8B57,#1A6B3F) !important; box-shadow:0 3px 10px rgba(46,139,87,0.4); }
 .choice-btn.wrong { border-color:var(--wrong); background:#FFF5F5; }
-.choice-btn.wrong .cbadge { background:var(--wrong); color:#fff; }
+.choice-btn.wrong .cbadge { background:linear-gradient(135deg,#C0392B,#962d22) !important; box-shadow:0 3px 10px rgba(192,57,43,0.4); }
 .choice-btn[disabled] { cursor:default; }
 .expl-card { background:linear-gradient(135deg,#EEF2FF,#F5F3FF); border:1px solid #C7D2FE; border-radius:13px; padding:13px 15px; display:none; }
 .expl-card.show { display:block; animation:slideUp 0.3s ease; }
@@ -192,6 +197,19 @@ body { font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif; background:v
 
 @keyframes shake { 0%,100%{transform:translateX(0)} 20%,60%{transform:translateX(-5px)} 40%,80%{transform:translateX(5px)} }
 .shake { animation:shake 0.35s ease; }
+
+/* ── EMOJI POPUP ── */
+.emoji-popup { position:fixed; pointer-events:none; z-index:9999; font-size:42px; text-align:center; line-height:1; animation:emojiFloat 1.1s ease forwards; }
+@keyframes emojiFloat {
+  0%   { opacity:0; transform:translateY(0) scale(0.4); }
+  20%  { opacity:1; transform:translateY(-20px) scale(1.25); }
+  60%  { opacity:1; transform:translateY(-70px) scale(1); }
+  100% { opacity:0; transform:translateY(-130px) scale(0.8); }
+}
+.emoji-popup .ep-label { display:block; font-size:13px; font-weight:900; color:#fff; text-shadow:0 1px 6px rgba(0,0,0,0.55); margin-top:2px; white-space:nowrap; }
+/* 정답 버튼 펄스 */
+@keyframes correctPulse { 0%{box-shadow:0 0 0 0 rgba(46,139,87,0.6)} 70%{box-shadow:0 0 0 14px rgba(46,139,87,0)} 100%{box-shadow:0 0 0 0 rgba(46,139,87,0)} }
+.choice-btn.correct { animation:correctPulse 0.55s ease; }
 </style>
 </head>
 <body>
@@ -485,12 +503,12 @@ function renderQuestion() {
   document.getElementById('mNum').textContent='#'+q.id;
   document.getElementById('qText').textContent=q.question;
   updateComboBadge();
-  var list=document.getElementById('choicesList'), nums=['①','②','③','④'];
+  var list=document.getElementById('choicesList'), nums=['1','2','3','4'];
   list.innerHTML='';
   q.choices.forEach(function(c,i){
     var btn=document.createElement('button');
     btn.className='choice-btn';
-    btn.innerHTML='<span class="cbadge">'+nums[i]+'</span><span class="ctext">'+c+'</span>';
+    btn.innerHTML='<span class="cbadge cb-'+(i+1)+'">'+nums[i]+'</span><span class="ctext">'+c+'</span>';
     btn.onclick=function(){selectAnswer(i,btn);};
     list.appendChild(btn);
   });
@@ -527,8 +545,20 @@ function timeOut(){
   document.querySelectorAll('.choice-btn').forEach(function(b){b.disabled=true;});
   document.querySelectorAll('.choice-btn')[q.answer].classList.add('correct');
   wrongQuestions.push({q:q,myAns:-1}); comboCount=0; updateComboBadge();
+  showEmojiPopup('⏱','시간 초과!', document.querySelectorAll('.choice-btn')[q.answer]);
   showToast('⏱ 시간 초과!'); showExpl(q); showNextBtn();
 }
+function showEmojiPopup(emoji, label, anchorEl) {
+  var rect = anchorEl ? anchorEl.getBoundingClientRect() : {left: window.innerWidth/2-24, top: window.innerHeight/2-24, width:48};
+  var el = document.createElement('div');
+  el.className = 'emoji-popup';
+  el.innerHTML = emoji + (label ? '<span class="ep-label">'+label+'</span>' : '');
+  el.style.left = (rect.left + rect.width/2 - 24) + 'px';
+  el.style.top  = (rect.top + window.scrollY - 10) + 'px';
+  document.body.appendChild(el);
+  setTimeout(function(){ if(el.parentNode) el.parentNode.removeChild(el); }, 1200);
+}
+
 function selectAnswer(idx,btn) {
   if(answered)return; answered=true; stopTimer();
   var q=quizQuestions[currentIdx], btns=document.querySelectorAll('.choice-btn');
@@ -537,11 +567,19 @@ function selectAnswer(idx,btn) {
     btn.classList.add('correct'); comboCount++; if(comboCount>maxCombo)maxCombo=comboCount;
     var bonus=comboCount>=3?2:1; score+=bonus;
     document.getElementById('qScore').textContent=score+'점';
+    // 이모지 팝업 — 콤보/상황별 반응
+    var remaining = settings.timer>0 ? timerSec : -1;
+    if(comboCount>=10)     showEmojiPopup('👑','최고예요!', btn);
+    else if(comboCount>=5) showEmojiPopup('🔥',comboCount+'연속!', btn);
+    else if(comboCount>=3) showEmojiPopup('⚡',comboCount+'콤보!', btn);
+    else if(remaining>0 && remaining>=settings.timer*0.7) showEmojiPopup('💨','빠른 정답!', btn);
+    else                   showEmojiPopup('⭐','+'+bonus+'점', btn);
     if(comboCount>=3)showToast('🔥 '+comboCount+'연속 콤보! +'+bonus+'점');
   } else {
     btn.classList.add('wrong'); btn.classList.add('shake');
     btns[q.answer].classList.add('correct');
     wrongQuestions.push({q:q,myAns:idx}); comboCount=0;
+    showEmojiPopup('💔','아쉬워요', btn);
   }
   updateComboBadge(); showExpl(q); showNextBtn();
 }
@@ -678,12 +716,12 @@ function renderLbList(rawData){
 
 // ── REVIEW ──
 function showReview(){
-  var body=document.getElementById('reviewBody'), nums=['①','②','③','④'];
+  var body=document.getElementById('reviewBody'), nums=['1','2','3','4'];
   body.innerHTML=wrongQuestions.map(function(item,i){
     var q=item.q,myAns=item.myAns;
     var choices=q.choices.map(function(c,ci){
       var cls=ci===q.answer?'correct':ci===myAns?'my-wrong':'';
-      return '<div class="review-choice '+cls+'"><span>'+nums[ci]+'</span><span>'+c+'</span></div>';
+      return '<div class="review-choice '+cls+'"><span class="cbadge cb-'+(ci+1)+'" style="width:24px;height:24px;font-size:12px;border-radius:7px;">'+nums[ci]+'</span><span>'+c+'</span></div>';
     }).join('');
     var expl=q.explanation?'<div class="review-expl">'+q.explanation+(q.verse?'<div class="review-verse">📖 '+q.verse+'</div>':'')+'</div>':'';
     return '<div class="review-item"><div class="review-q-num">'+(i+1)+'번 오답 · #'+q.id+' · '+q.section+'</div><div class="review-q-text">'+q.question+'</div><div class="review-choices">'+choices+'</div>'+expl+'</div>';

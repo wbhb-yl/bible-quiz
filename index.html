@@ -316,12 +316,18 @@ body { font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif; background:v
       <button class="lb-tog" data-mode="best" onclick="setLbMode(this)">베스트</button>
       <button class="lb-tog" data-mode="today" onclick="setLbMode(this)">오늘</button>
     </div>
-    <div class="lb-filter-row">
+    <div class="lb-filter-row" id="lbSectionFilter">
       <button class="lf-btn active" data-filter="all" onclick="setLbFilter(this)">전체</button>
       <button class="lf-btn" data-filter="신명기" onclick="setLbFilter(this)">📜 신명기</button>
       <button class="lf-btn" data-filter="여호수아" onclick="setLbFilter(this)">⚔️ 여호수아</button>
       <button class="lf-btn" data-filter="사사기" onclick="setLbFilter(this)">🦁 사사기</button>
       <button class="lf-btn" data-filter="넌센스" onclick="setLbFilter(this)">😄 넌센스</button>
+    </div>
+    <div class="lb-filter-row" id="lbCountFilter">
+      <button class="lf-btn active" data-count="all" onclick="setLbCount(this)">문제수 전체</button>
+      <button class="lf-btn" data-count="10" onclick="setLbCount(this)">10문제</button>
+      <button class="lf-btn" data-count="20" onclick="setLbCount(this)">20문제</button>
+      <button class="lf-btn" data-count="30" onclick="setLbCount(this)">30문제</button>
     </div>
     <div class="lb-live-badge" id="liveBadge" style="display:none"><div class="lb-live-dot"></div>실시간 업데이트 중</div>
     <div id="lbList"><div class="lb-loading">불러오는 중...</div></div>
@@ -382,7 +388,7 @@ let selectedSections = new Set(['신명기','여호수아','사사기','넌센�
 let quizQuestions=[], currentIdx=0, score=0, answered=false;
 let wrongQuestions=[], comboCount=0, maxCombo=0;
 let currentUserName='', timerInterval=null, timerSec=0;
-let lbMode='all', lbFilter='all', lbAllData=[];
+let lbMode='all', lbFilter='all', lbCount='all', lbAllData=[];
 
 // ── TOAST ──
 function showToast(msg, dur) {
@@ -601,9 +607,10 @@ function clearLb(){
 
 // ── LEADERBOARD SCREEN ──
 function showLeaderboard(){
-  lbMode='all';lbFilter='all';
+  lbMode='all';lbFilter='all';lbCount='all';
   document.querySelectorAll('.lb-tog').forEach(function(b){b.classList.toggle('active',b.dataset.mode==='all');});
-  document.querySelectorAll('.lf-btn').forEach(function(b){b.classList.toggle('active',b.dataset.filter==='all');});
+  document.querySelectorAll('#lbSectionFilter .lf-btn').forEach(function(b){b.classList.toggle('active',b.dataset.filter==='all');});
+  document.querySelectorAll('#lbCountFilter .lf-btn').forEach(function(b){b.classList.toggle('active',b.dataset.count==='all');});
   showScreen('leaderboard');
   if(fbMode&&fbDb){
     document.getElementById('lbList').innerHTML='<div class="lb-loading">실시간 데이터 불러오는 중...</div>';
@@ -625,13 +632,19 @@ function setLbMode(btn){
 }
 function setLbFilter(btn){
   lbFilter=btn.dataset.filter;
-  document.querySelectorAll('.lf-btn').forEach(function(b){b.classList.remove('active');});
+  document.querySelectorAll('#lbSectionFilter .lf-btn').forEach(function(b){b.classList.remove('active');});
+  btn.classList.add('active'); renderLbList(lbAllData);
+}
+function setLbCount(btn){
+  lbCount=btn.dataset.count;
+  document.querySelectorAll('#lbCountFilter .lf-btn').forEach(function(b){b.classList.remove('active');});
   btn.classList.add('active'); renderLbList(lbAllData);
 }
 function renderLbList(rawData){
   var list=document.getElementById('lbList');
   var data=rawData.slice();
   if(lbFilter!=='all') data=data.filter(function(r){return r.sections&&r.sections.includes(lbFilter);});
+  if(lbCount!=='all') data=data.filter(function(r){return r.total===parseInt(lbCount);});
   var today=new Date().toDateString();
   if(lbMode==='today') data=data.filter(function(r){return new Date(r.date).toDateString()===today;});
   if(lbMode==='best'){

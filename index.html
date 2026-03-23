@@ -187,7 +187,7 @@ body { font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif; background:v
 .lb-loading { text-align:center; color:rgba(255,255,255,0.4); font-size:13px; padding:40px 0; }
 
 /* ── TOAST ── */
-.toast { position:fixed; bottom:28px; left:50%; transform:translateX(-50%) translateY(16px); background:rgba(20,20,20,0.93); color:#fff; padding:9px 20px; border-radius:18px; font-size:13px; font-weight:600; opacity:0; transition:all 0.3s; pointer-events:none; z-index:999; max-width:320px; text-align:center; }
+.toast { position:fixed; bottom:28px; left:50%; transform:translateX(-50%) translateY(16px); background:rgba(20,20,20,0.93); color:#fff; padding:9px 20px; border-radius:18px; font-size:13px; font-weight:600; opacity:0; transition:all 0.3s; pointer-events:none; z-index:999; max-width:320px; text-align:center; white-space:pre-line; line-height:1.6; }
 .toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
 
 @keyframes shake { 0%,100%{transform:translateX(0)} 20%,60%{transform:translateX(-5px)} 40%,80%{transform:translateX(5px)} }
@@ -421,6 +421,13 @@ function toggleSettings(btn) {
 }
 function setSetting(btn) {
   var k=btn.dataset.key, v=btn.dataset.val;
+  if(k==='count' && v==='0') {
+    var pool=QUIZ_DATA.filter(function(q){return selectedSections.has(q.section);});
+    if(settings.diff!=='all') pool=pool.filter(function(q){return q.difficulty===settings.diff;});
+    var sections=[...selectedSections].join(', ') || '없음';
+    var diffLabel=settings.diff==='all'?'전체':settings.diff;
+    showToast('총 '+pool.length+'문제\n(범위: '+sections+' / 난이도: '+diffLabel+')', 3000);
+  }
   settings[k]=(k==='count'||k==='timer')?parseInt(v):v;
   document.querySelectorAll('[data-key="'+k+'"]').forEach(function(b){b.classList.remove('active');});
   btn.classList.add('active');
@@ -428,7 +435,7 @@ function setSetting(btn) {
 
 // ── PROGRESS ──
 function saveProgress() {
-  localStorage.setItem(PROG_KEY,JSON.stringify({name:currentUserName,questions:quizQuestions,idx:currentIdx,score:score,wrong:wrongQuestions,combo:comboCount,maxCombo:maxCombo,settings:settings}));
+  localStorage.setItem(PROG_KEY,JSON.stringify({name:currentUserName,questions:quizQuestions,idx:currentIdx,score:score,wrong:wrongQuestions,combo:comboCount,maxCombo:maxCombo,settings:settings,answered:answered}));
 }
 function clearProgress() { localStorage.removeItem(PROG_KEY); }
 function checkResume() {
@@ -446,7 +453,7 @@ function resumeQuiz() {
   var s=JSON.parse(raw);
   currentUserName=s.name; quizQuestions=s.questions; currentIdx=s.idx;
   score=s.score; wrongQuestions=s.wrong||[]; comboCount=s.combo||0; maxCombo=s.maxCombo||0;
-  settings=s.settings||settings;
+  settings=s.settings||settings; answered=s.answered||false;
   document.getElementById('nameInput').value=currentUserName;
   showScreen('quiz'); renderQuestion();
 }
@@ -461,6 +468,7 @@ function startQuiz() {
   if(settings.order==='random') pool=pool.sort(function(){return Math.random()-0.5;});
   var cnt=settings.count>0?settings.count:pool.length;
   quizQuestions=pool.slice(0,cnt);
+  stopTimer();
   currentIdx=0;score=0;answered=false;wrongQuestions=[];comboCount=0;maxCombo=0;
   clearProgress(); showScreen('quiz'); renderQuestion();
 }
@@ -565,6 +573,7 @@ function confirmBack(){
 // ── RESULT ──
 function showResult(){
   stopTimer();
+  if(!quizQuestions||quizQuestions.length===0){showToast('문제 데이터가 없습니다.');goHome();return;}
   var total=quizQuestions.length, correct=total-wrongQuestions.length, pct=Math.round((correct/total)*100);
   document.getElementById('stTotal').textContent=total;
   document.getElementById('stCorrect').textContent=correct;
@@ -614,7 +623,7 @@ function showLeaderboard(){
   showScreen('leaderboard');
   if(fbMode&&fbDb){
     document.getElementById('lbList').innerHTML='<div class="lb-loading">실시간 데이터 불러오는 중...</div>';
-    if(lbListener) fbDb.ref('leaderboard').off('value',lbListener);
+    if(lbListener){fbDb.ref('leaderboard').off('value',lbListener);lbListener=null;}
     lbListener=fbDb.ref('leaderboard').on('value',function(snap){
       var raw=snap.val(), arr=[];
       if(raw) Object.values(raw).forEach(function(v){arr.push(v);});
@@ -684,6 +693,7 @@ function showReview(){
 
 // ── SHARE ──
 function shareResult(){
+  if(!quizQuestions||quizQuestions.length===0){showToast('공유할 결과가 없습니다.');return;}
   var total=quizQuestions.length, correct=total-wrongQuestions.length, pct=Math.round((correct/total)*100);
   var text='✝️ 성경 퀴즈 결과\n'+currentUserName+' · '+pct+'% ('+correct+'/'+total+'문제)\n최대 콤보: '+maxCombo+'연속\n#성경퀴즈 #BibleQuiz';
   if(navigator.share){navigator.share({title:'성경 퀴즈 결과',text:text}).catch(function(){});}
